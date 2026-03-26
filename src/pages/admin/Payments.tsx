@@ -98,13 +98,18 @@ export default function PaymentsPage() {
         setForm(updated);
     };
 
-    if (loading) return <Spinner />;
+    // no full-page spinner
 
     return (
         <div>
             <PageHeader
                 title={i18n.payments}
-                subtitle={formatMonth(selectedMonth, lang)}
+                subtitle={
+                    formatMonth(selectedMonth, lang) +
+                    (loading && payments.length === 0
+                        ? ' — ' + i18n.loading
+                        : '')
+                }
                 action={
                     <div className='flex gap-2'>
                         <Select
