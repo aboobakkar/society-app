@@ -20,8 +20,13 @@ export default function SettingsPage() {
   const handleSave = async (e: FormEvent) => {
     e.preventDefault()
     setSaving(true)
-    await updateSettings(form)
-    setSaving(false)
+    try {
+      await updateSettings(form)
+    } catch (e: any) {
+      toast.error(e?.message || 'Unexpected error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handlePasswordChange = async (e: FormEvent) => {
@@ -29,10 +34,15 @@ export default function SettingsPage() {
     if (pwForm.newPw !== pwForm.confirm) { toast.error(i18n.passwordMismatch); return }
     if (pwForm.newPw.length < 8) { toast.error(i18n.passwordTooShort); return }
     setPwSaving(true)
-    const { error } = await supabase.auth.updateUser({ password: pwForm.newPw })
-    setPwSaving(false)
-    if (error) toast.error(error.message)
-    else { toast.success(i18n.passwordUpdated); setPwForm({ newPw: '', confirm: '' }) }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pwForm.newPw })
+      if (error) toast.error(error.message)
+      else { toast.success(i18n.passwordUpdated); setPwForm({ newPw: '', confirm: '' }) }
+    } catch (e: any) {
+      toast.error(e?.message || 'Unexpected error')
+    } finally {
+      setPwSaving(false)
+    }
   }
 
   if (loading) return <Spinner />

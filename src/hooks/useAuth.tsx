@@ -44,95 +44,80 @@ function setCachedProfile(p: Profile | null) {
 }
 
 async function fetchProfile(userId: string): Promise<Profile | null> {
-    const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-    if (error) return null;
-    return data as Profile;
+    try {
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+        if (error) return null;
+        return data as Profile;
+    } catch (e) {
+        console.error('[fetchProfile] error:', e);
+        return null;
+    }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    // Initialise profile from cache — so on refresh it's available immediately
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<Profile | null>(getCachedProfile);
     const [session, setSession] = useState<Session | null>(null);
-
-    // If we have a cached profile, start with loading=false
-    const [loading, setLoading] = useState(() => getCachedProfile() === null);
+    // Start loading=true always. INITIAL_SESSION fires very fast (next tick),
+    // so the spinner is barely visible. This avoids any race with cached state.
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        let active = true;
+        let cancelled = false;
 
-        async function init() {
-            // Get session synchronously from localStorage (Supabase stores it there)
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
+        // onAuthStateChange is the SINGLE source of truth.
+        // INITIAL_SESSION always fires on mount — even on hard page refresh.
+        // We no longer call getSession() separately; that was the source of hangs
+        // when the token refresh network call took too long or failed.
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, sess) => {
+            if (cancelled) return;
 
-            if (!active) return;
+            setSession(sess);
+            setUser(sess?.user ?? null);
 
-            if (!session) {
-                // No session — clear cache and stop loading
-                setCachedProfile(null);
+            if (!sess) {
+                // Signed out or no session at all
                 setProfile(null);
-                setSession(null);
-                setUser(null);
+                setCachedProfile(null);
                 setLoading(false);
                 return;
             }
 
-            setSession(session);
-            setUser(session.user);
-
-            // If cached profile matches current user — use it immediately
+            // Check the local cache first for an instant response
             const cached = getCachedProfile();
-            if (cached && cached.id === session.user.id) {
+            if (cached && cached.id === sess.user.id) {
                 setProfile(cached);
                 setLoading(false);
-                // Refresh in background silently
-                fetchProfile(session.user.id).then((fresh) => {
-                    if (fresh && active) {
+                // Silently refresh in background so data stays fresh
+                fetchProfile(sess.user.id).then((fresh) => {
+                    if (fresh && !cancelled) {
                         setProfile(fresh);
                         setCachedProfile(fresh);
                     }
                 });
             } else {
-                // No cache or different user — must fetch before showing app
-                const p = await fetchProfile(session.user.id);
-                if (!active) return;
-                setProfile(p);
-                setCachedProfile(p);
-                setLoading(false);
+                // No cache (first login) — must fetch before showing app
+                try {
+                    const p = await fetchProfile(sess.user.id);
+                    if (cancelled) return;
+                    setProfile(p);
+                    setCachedProfile(p);
+                } catch (e) {
+                    console.error('[AuthProvider] fetchProfile failed:', e);
+                } finally {
+                    if (!cancelled) setLoading(false);
+                }
             }
-        }
-
-        init();
-
-        // Listen for sign in / sign out events after initial load
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'INITIAL_SESSION') return; // handled by init()
-
-            setSession(session);
-            setUser(session?.user ?? null);
-
-            if (session?.user) {
-                const p = await fetchProfile(session.user.id);
-                if (!active) return;
-                setProfile(p);
-                setCachedProfile(p);
-            } else {
-                setProfile(null);
-                setCachedProfile(null);
-            }
-            setLoading(false);
         });
 
         return () => {
-            active = false;
+            cancelled = true;
             subscription.unsubscribe();
         };
     }, []);
