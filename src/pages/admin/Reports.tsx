@@ -78,7 +78,7 @@ export default function ReportsPage() {
         };
     });
 
-    if (membersLoading || reportLoading || paymentsLoading) return <Spinner />;
+    // no full-page spinner
 
     return (
         <div>
