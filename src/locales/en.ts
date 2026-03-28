@@ -86,6 +86,18 @@ const en = {
   activateConfirm: (name: string) => `Activate ${name}?`,
   activeCount: (active: number, total: number) => `${active} active · ${total} total`,
 
+  // ── Previous Dues ──────────────────────────
+  previousDues: 'Previous Dues',
+  openingBalance: 'Opening Balance (₹)',
+  dueFromMonth: 'Due From Month',
+  dueFromMonthHint: 'Month from which dues are owed',
+  noDues: 'No dues',
+  duesLabel: 'Dues',
+  dueMonthsCalc: (months: number, rate: number) => `≈ ${months} month${months !== 1 ? 's' : ''} @ ₹${rate}/month`,
+  dueMonthsRemaining: (n: number) => `${n} due month${n !== 1 ? 's' : ''} remaining`,
+  dueAutoSelected: 'Earliest unpaid due month auto-selected.',
+  allDuesCleared: 'All previous dues cleared ✓',
+
   // ── Payments ──────────────────────────────
   recordPayment: 'Record Payment',
   savePayment: 'Save Payment',

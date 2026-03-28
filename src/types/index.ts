@@ -27,6 +27,8 @@ export interface Member {
   address: string | null
   joined_month: string  // YYYY-MM
   notes: string | null
+  opening_balance: number      // total previous dues amount (0 = no dues)
+  due_from_month: string | null // YYYY-MM — earliest month of previous dues
   created_at: string
   updated_at: string
 }

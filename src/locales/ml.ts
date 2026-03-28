@@ -88,6 +88,18 @@ const ml: TranslationKeys = {
   activateConfirm: (name: string) => `${name} സജീവമാക്കണോ?`,
   activeCount: (active: number, total: number) => `${active} സജീവം · ${total} ആകെ`,
 
+  // ── Previous Dues ──────────────────────────
+  previousDues: 'മുൻ കുടിശ്ശിക',
+  openingBalance: 'ഓപ്പണിംഗ് ബാലൻസ് (₹)',
+  dueFromMonth: 'കുടിശ്ശിക തുടങ്ങുന്ന മാസം',
+  dueFromMonthHint: 'കുടിശ്ശിക ഏത് മാസം മുതൽ',
+  noDues: 'കുടിശ്ശിക ഇല്ല',
+  duesLabel: 'കുടിശ്ശിക',
+  dueMonthsCalc: (months: number, rate: number) => `≈ ${months} മാസം @ ₹${rate}/മാസം`,
+  dueMonthsRemaining: (n: number) => `${n} മാസം കുടിശ്ശിക ബാക്കി`,
+  dueAutoSelected: 'ഏറ്റവും പഴക്കമുള്ള കുടിശ്ശിക മാസം സ്വയം തിരഞ്ഞെടുത്തു.',
+  allDuesCleared: 'എല്ലാ കുടിശ്ശികകളും ക്ലിയർ ആയി ✓',
+
   // ── Payments ──────────────────────────────
   recordPayment: 'പേയ്മെന്റ് രേഖപ്പെടുത്തുക',
   savePayment: 'പേയ്മെന്റ് സേവ് ചെയ്യുക',
