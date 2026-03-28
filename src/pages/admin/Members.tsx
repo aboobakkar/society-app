@@ -23,10 +23,12 @@ const EMPTY_FORM = {
     name_ml: '',
     mobile: '',
     monthly_amount: 500,
-    status: 'active' as const,
+    status: 'active' as 'active' | 'inactive',
     address: '',
     joined_month: getCurrentMonth(),
     notes: '',
+    opening_balance: 0,
+    due_from_month: '',
 };
 
 export default function MembersPage() {
@@ -68,6 +70,8 @@ export default function MembersPage() {
             address: m.address || '',
             joined_month: m.joined_month,
             notes: m.notes || '',
+            opening_balance: m.opening_balance || 0,
+            due_from_month: m.due_from_month || '',
         });
         setEditId(m.id);
         setShowModal(true);
@@ -168,6 +172,7 @@ export default function MembersPage() {
                                     i18n.name,
                                     i18n.mobile,
                                     i18n.monthlyAmountLabel,
+                                    i18n.duesLabel,
                                     i18n.joined,
                                     i18n.status,
                                     i18n.actions,
@@ -212,6 +217,16 @@ export default function MembersPage() {
                                     </td>
                                     <td className='px-4 py-3 font-medium'>
                                         {formatCurrency(m.monthly_amount)}
+                                    </td>
+                                    <td className='px-4 py-3'>
+                                        {m.opening_balance > 0 && m.due_from_month ? (
+                                            <span className='inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5'>
+                                                {formatCurrency(m.opening_balance)}
+                                                <span className='text-amber-400 font-normal'>from {m.due_from_month}</span>
+                                            </span>
+                                        ) : (
+                                            <span className='text-stone-300 text-xs'>—</span>
+                                        )}
                                     </td>
                                     <td className='px-4 py-3 text-stone-500'>
                                         {m.joined_month}
@@ -330,6 +345,37 @@ export default function MembersPage() {
                             />
                         </div>
                     </div>
+
+                    {/* Previous Dues */}
+                    <div className='border-t border-stone-100 pt-4'>
+                        <p className='text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3'>
+                            {i18n.previousDues}
+                        </p>
+                        <div className='grid grid-cols-2 gap-3'>
+                            <Input
+                                label={i18n.dueFromMonth}
+                                type='month'
+                                value={form.due_from_month}
+                                onChange={(e) => f('due_from_month', e.target.value)}
+                                hint={i18n.dueFromMonthHint}
+                            />
+                            <Input
+                                label={i18n.openingBalance}
+                                type='number'
+                                value={form.opening_balance || ''}
+                                onChange={(e) => f('opening_balance', Number(e.target.value))}
+                            />
+                        </div>
+                        {form.due_from_month && (form.opening_balance as number) > 0 && (
+                            <p className='text-xs text-amber-600 mt-2'>
+                                ⚡ {i18n.dueMonthsCalc(
+                                    Math.ceil((form.opening_balance as number) / (form.monthly_amount || 500)),
+                                    form.monthly_amount || 500
+                                )}
+                            </p>
+                        )}
+                    </div>
+
                     <div className='flex gap-2 pt-2'>
                         <Button
                             onClick={handleSave}
