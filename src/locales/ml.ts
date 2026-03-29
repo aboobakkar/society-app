@@ -118,6 +118,12 @@ const ml: TranslationKeys = {
   deletePaymentConfirm: 'ഈ പേയ്മെന്റ് ഇല്ലാതാക്കണോ? തിരിച്ചെടുക്കാൻ കഴിയില്ല.',
   pendingThisMonth: 'ഈ മാസം കുടിശ്ശിക',
   cashOnline: 'ക്യാഷ് / ഓൺലൈൻ',
+  paymentType: 'പേയ്മെന്റ് തരം *',
+  paymentTypeMonthly: 'മാസ വരിസംഖ്യ',
+  paymentTypeImamFood: 'ഇമാം ഭക്ഷണ അലവൻസ്',
+  imamFoodAllowance: 'ഇമാം ഭക്ഷണ അലവൻസ്',
+  imamFoodCollected: 'ഇമാം ഭക്ഷണ ശേഖരം',
+  duesSynced: 'അംഗ കുടിശ്ശിക ക്ലിയർ ആയി, രേഖ അപ്ഡേറ്റ് ചെയ്തു.',
 
   // ── Expenses ──────────────────────────────
   addExpense: 'ചെലവ് ചേർക്കുക',
