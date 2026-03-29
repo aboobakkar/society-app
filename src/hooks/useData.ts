@@ -112,12 +112,12 @@ export function usePayments(month?: string) {
 
   const addPayment = async (payment: {
     member_id: string; month: string; amount: number; method: string
-    payment_date: string; reference_no?: string; notes?: string; recorded_by?: string
+    payment_type?: string; payment_date: string; reference_no?: string; notes?: string; recorded_by?: string
   }) => {
     try {
       const { data, error } = await supabase.from('payments').insert(payment).select('*, member:members(*)').single()
       if (error) {
-        if (error.code === '23505') toast.error('Payment already recorded for this member this month')
+        if (error.code === '23505') toast.error('This payment type is already recorded for this member this month')
         else toast.error(error.message)
         return null
       }

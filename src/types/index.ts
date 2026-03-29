@@ -5,6 +5,7 @@
 export type Role = 'superadmin' | 'admin' | 'member'
 export type MemberStatus = 'active' | 'inactive'
 export type PaymentMethod = 'cash' | 'online' | 'bank'
+export type PaymentType = 'monthly' | 'imam_food'
 export type ExpenseCategory = 'salary' | 'utility' | 'maintenance' | 'event' | 'other'
 
 export interface Profile {
@@ -39,6 +40,7 @@ export interface Payment {
   month: string         // YYYY-MM
   amount: number
   method: PaymentMethod
+  payment_type: PaymentType  // 'monthly' | 'imam_food'
   payment_date: string  // YYYY-MM-DD
   reference_no: string | null
   notes: string | null

@@ -116,6 +116,12 @@ const en = {
   deletePaymentConfirm: 'Delete this payment record? This cannot be undone.',
   pendingThisMonth: 'Pending this month',
   cashOnline: 'Cash / Online',
+  paymentType: 'Payment Type *',
+  paymentTypeMonthly: 'Monthly Subscription',
+  paymentTypeImamFood: 'Imam Food Allowance',
+  imamFoodAllowance: 'Imam Food Allowance',
+  imamFoodCollected: 'Imam Food Collected',
+  duesSynced: 'Member dues cleared and record updated.',
 
   // ── Expenses ──────────────────────────────
   addExpense: 'Add Expense',

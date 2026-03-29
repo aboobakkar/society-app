@@ -31,10 +31,13 @@ export default function AdminDashboard() {
 
     // Never block the full page — render with whatever data is available
     const activeMembers = members.filter((m) => m.status === 'active');
-    const totalCollected = payments.reduce((s, p) => s + p.amount, 0);
+    const monthlyPayments = payments.filter((p) => (p.payment_type ?? 'monthly') === 'monthly');
+    const imamFoodPayments = payments.filter((p) => p.payment_type === 'imam_food');
+    const totalCollected = monthlyPayments.reduce((s, p) => s + p.amount, 0);
+    const imamFoodCollected = imamFoodPayments.reduce((s, p) => s + p.amount, 0);
     const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
     const balance = totalCollected - totalExpenses;
-    const paidMemberIds = new Set(payments.map((p) => p.member_id));
+    const paidMemberIds = new Set(monthlyPayments.map((p) => p.member_id));
     const unpaidMembers = activeMembers.filter((m) => !paidMemberIds.has(m.id));
     const expectedTotal = activeMembers.reduce(
         (s, m) => s + m.monthly_amount,
@@ -68,7 +71,7 @@ export default function AdminDashboard() {
                 <StatCard
                     label={i18n.collected}
                     value={pLoading ? '...' : formatCurrency(totalCollected)}
-                    sub={pLoading ? '' : `${payments.length} ${i18n.payments}`}
+                    sub={pLoading ? '' : `${monthlyPayments.length} ${i18n.payments}`}
                     valueClass='text-green-700'
                 />
                 <StatCard
@@ -92,18 +95,10 @@ export default function AdminDashboard() {
                     }
                 />
                 <StatCard
-                    label={i18n.collectionRate}
-                    value={dataLoading ? '...' : `${collectionRate}%`}
-                    sub={
-                        dataLoading
-                            ? ''
-                            : `${payments.length}/${activeMembers.length} ${i18n.paid}`
-                    }
-                    valueClass={
-                        collectionRate === 100
-                            ? 'text-green-700'
-                            : 'text-amber-700'
-                    }
+                    label={i18n.imamFoodAllowance}
+                    value={pLoading ? '...' : imamFoodCollected > 0 ? formatCurrency(imamFoodCollected) : '—'}
+                    sub={pLoading ? '' : imamFoodPayments.length > 0 ? `${imamFoodPayments.length} payments` : 'None this month'}
+                    valueClass='text-purple-700'
                 />
             </div>
 
@@ -171,6 +166,9 @@ export default function AdminDashboard() {
                                                     ? member.name_ml ||
                                                       member.name
                                                     : member.name}
+                                                {p.payment_type === 'imam_food' && (
+                                                    <span className='ml-1.5 text-xs bg-purple-50 border border-purple-200 text-purple-700 rounded-full px-1.5 py-0.5'>Imam</span>
+                                                )}
                                             </p>
                                             <p className='text-xs text-stone-400'>
                                                 {formatDate(p.payment_date)} ·{' '}
@@ -283,7 +281,7 @@ export default function AdminDashboard() {
                                     {i18n.paid}:{' '}
                                 </span>
                                 <span className='font-medium text-green-700'>
-                                    {payments.length}
+                                    {monthlyPayments.length}
                                 </span>
                             </div>
                             <div>

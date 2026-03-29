@@ -12,7 +12,6 @@ import {
     PageHeader,
     Card,
     StatCard,
-    Spinner,
     EmptyState,
     ConfirmDialog,
 } from '@/components/ui';
@@ -23,45 +22,111 @@ import {
     getMonthOptions,
     formatDate,
 } from '@/lib/utils';
-import { Plus, Trash2, Clock } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { Plus, Trash2, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function nextMonth(ym: string): string {
+    const [y, m] = ym.split('-').map(Number);
+    if (m === 12) return `${y + 1}-01`;
+    return `${y}-${String(m + 1).padStart(2, '0')}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function PaymentsPage() {
     const { i18n, lang } = useLang();
     const { profile } = useAuth();
     const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
-    const { members } = useMembers();
+    const { members, updateMember } = useMembers();
     const { payments, loading, addPayment, deletePayment } =
         usePayments(selectedMonth);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState<Payment | null>(null);
+
     const [form, setForm] = useState({
         member_id: '',
         month: selectedMonth,
         amount: 500,
         method: 'cash',
+        payment_type: 'monthly',
         payment_date: new Date().toISOString().slice(0, 10),
         reference_no: '',
         notes: '',
     });
 
+    // per-member due resolution state
+    const [memberPaidMonths, setMemberPaidMonths] = useState<string[]>([]);
+    const [loadingMemberPayments, setLoadingMemberPayments] = useState(false);
+    const [targetMonth, setTargetMonth] = useState<string | null>(null);
+    const [allDuesCleared, setAllDuesCleared] = useState(false);
+
+    // ─── derived ────────────────────────────────────────────────────────────
     const activeMembers = members.filter((m) => m.status === 'active');
-    const paidMemberIds = new Set(payments.map((p) => p.member_id));
+    // For the selected month tab, only count monthly payments
+    const monthlyPayments = payments.filter((p) => (p.payment_type ?? 'monthly') === 'monthly');
+    const imamFoodPayments = payments.filter((p) => p.payment_type === 'imam_food');
+    const paidMemberIds = new Set(monthlyPayments.map((p) => p.member_id));
     const unpaidMembers = activeMembers.filter((m) => !paidMemberIds.has(m.id));
-    const totalCollected = payments.reduce((s, p) => s + p.amount, 0);
-    const expectedTotal = activeMembers.reduce(
-        (s, m) => s + m.monthly_amount,
-        0,
-    );
+    const totalCollected = monthlyPayments.reduce((s, p) => s + p.amount, 0);
+    const imamFoodTotal = imamFoodPayments.reduce((s, p) => s + p.amount, 0);
+    const expectedTotal = activeMembers.reduce((s, m) => s + m.monthly_amount, 0);
     const monthOptions = getMonthOptions(2023);
 
-    const openModal = (memberId = '') => {
+    // ─── fetch all paid months for a member ─────────────────────────────────
+    const fetchMemberPaidMonths = async (memberId: string): Promise<string[]> => {
+        const { data, error } = await supabase
+            .from('payments')
+            .select('month')
+            .eq('member_id', memberId)
+            .eq('payment_type', 'monthly');
+        if (error) return [];
+        return (data || []).map((p: { month: string }) => p.month);
+    };
+
+    // ─── compute earliest unpaid due month ──────────────────────────────────
+    const computeTargetMonth = (
+        dueFromMonth: string,
+        paidMonths: string[],
+    ): { target: string; cleared: boolean } => {
+        const current = getCurrentMonth();
+        const paidSet = new Set(paidMonths);
+        let cursor = dueFromMonth;
+        while (cursor <= current) {
+            if (!paidSet.has(cursor)) return { target: cursor, cleared: false };
+            cursor = nextMonth(cursor);
+        }
+        return { target: current, cleared: true };
+    };
+
+    // ─── open modal ─────────────────────────────────────────────────────────
+    const openModal = async (memberId = '') => {
         const member = members.find((m) => m.id === memberId);
+        setMemberPaidMonths([]);
+        setTargetMonth(null);
+        setAllDuesCleared(false);
+
+        let resolvedMonth = selectedMonth;
+
+        if (memberId && member?.due_from_month) {
+            setLoadingMemberPayments(true);
+            const paid = await fetchMemberPaidMonths(memberId);
+            setMemberPaidMonths(paid);
+            const { target, cleared } = computeTargetMonth(member.due_from_month, paid);
+            setTargetMonth(target);
+            setAllDuesCleared(cleared);
+            resolvedMonth = target;
+            setLoadingMemberPayments(false);
+        }
+
         setForm({
             member_id: memberId,
-            month: selectedMonth,
+            month: resolvedMonth,
             amount: member?.monthly_amount || 500,
             method: 'cash',
+            payment_type: 'monthly',
             payment_date: new Date().toISOString().slice(0, 10),
             reference_no: '',
             notes: '',
@@ -69,15 +134,68 @@ export default function PaymentsPage() {
         setShowModal(true);
     };
 
+    // ─── member changed inside modal ────────────────────────────────────────
+    const handleMemberChange = async (memberId: string) => {
+        const member = members.find((m) => m.id === memberId);
+        setMemberPaidMonths([]);
+        setTargetMonth(null);
+        setAllDuesCleared(false);
+
+        let resolvedMonth = selectedMonth;
+
+        if (memberId && member?.due_from_month) {
+            setLoadingMemberPayments(true);
+            const paid = await fetchMemberPaidMonths(memberId);
+            setMemberPaidMonths(paid);
+            const { target, cleared } = computeTargetMonth(member.due_from_month, paid);
+            setTargetMonth(target);
+            setAllDuesCleared(cleared);
+            resolvedMonth = target;
+            setLoadingMemberPayments(false);
+        }
+
+        setForm((prev) => ({
+            ...prev,
+            member_id: memberId,
+            month: resolvedMonth,
+            amount: member?.monthly_amount || prev.amount,
+        }));
+    };
+
+    // ─── field update ────────────────────────────────────────────────────────
+    const f = (k: string, v: string | number) =>
+        setForm((prev) => ({ ...prev, [k]: v }));
+
+    // ─── save payment + sync member dues ────────────────────────────────────
     const handleSave = async () => {
         if (!form.member_id) return;
         setSaving(true);
         try {
             const result = await addPayment({
                 ...form,
+                payment_type: form.payment_type,
                 recorded_by: profile?.id,
             });
-            if (result) setShowModal(false);
+
+            if (result) {
+                // ── Bug 1 Fix: sync member dues after a monthly payment ──
+                if (form.payment_type === 'monthly') {
+                    const member = members.find((m) => m.id === form.member_id);
+                    if (member?.due_from_month) {
+                        // Re-fetch all paid months (including the one just saved)
+                        const allPaid = await fetchMemberPaidMonths(form.member_id);
+                        const { cleared } = computeTargetMonth(member.due_from_month, allPaid);
+                        if (cleared) {
+                            // All due months are now paid — zero out the member's dues
+                            await updateMember(form.member_id, {
+                                opening_balance: 0,
+                                due_from_month: null,
+                            });
+                        }
+                    }
+                }
+                setShowModal(false);
+            }
         } finally {
             setSaving(false);
         }
@@ -89,26 +207,47 @@ export default function PaymentsPage() {
         setConfirmDelete(null);
     };
 
-    const f = (k: string, v: string | number) => {
-        const updated = { ...form, [k]: v };
-        if (k === 'member_id') {
-            const member = members.find((m) => m.id === v);
-            updated.amount = member?.monthly_amount || 500;
+    // ─── derived: dues state for selected member ─────────────────────────────
+    const selectedMember = members.find((m) => m.id === form.member_id);
+    const hasDues = !!(selectedMember?.due_from_month);
+    const isDueMonth = hasDues && targetMonth !== null && !allDuesCleared && form.payment_type === 'monthly';
+
+    // Available month options for the month picker
+    const availableMonthOptions = (() => {
+        // Imam food: allow any month up to current
+        if (form.payment_type === 'imam_food') {
+            return monthOptions.filter((m) => m <= getCurrentMonth());
         }
-        setForm(updated);
-    };
+        if (!selectedMember?.due_from_month || allDuesCleared) {
+            return monthOptions.filter((m) => m <= getCurrentMonth());
+        }
+        // Due member: only unpaid months from due_from_month to current
+        const paidSet = new Set(memberPaidMonths);
+        const current = getCurrentMonth();
+        const opts: string[] = [];
+        let cursor = selectedMember.due_from_month;
+        while (cursor <= current) {
+            if (!paidSet.has(cursor)) opts.push(cursor);
+            cursor = nextMonth(cursor);
+        }
+        return opts;
+    })();
 
-    // no full-page spinner
+    const imamFoodBadge = (p: Payment) =>
+        p.payment_type === 'imam_food' ? (
+            <span className='ml-1 text-xs bg-purple-50 border border-purple-200 text-purple-700 rounded-full px-1.5 py-0.5'>
+                Imam
+            </span>
+        ) : null;
 
+    // ─── render ──────────────────────────────────────────────────────────────
     return (
         <div>
             <PageHeader
                 title={i18n.payments}
                 subtitle={
                     formatMonth(selectedMonth, lang) +
-                    (loading && payments.length === 0
-                        ? ' — ' + i18n.loading
-                        : '')
+                    (loading && payments.length === 0 ? ' — ' + i18n.loading : '')
                 }
                 action={
                     <div className='flex gap-2'>
@@ -134,6 +273,7 @@ export default function PaymentsPage() {
                 }
             />
 
+            {/* Stats */}
             <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5'>
                 <StatCard
                     label={i18n.collected}
@@ -143,7 +283,7 @@ export default function PaymentsPage() {
                 />
                 <StatCard
                     label={i18n.paid}
-                    value={payments.length}
+                    value={monthlyPayments.length}
                     sub={`of ${activeMembers.length} ${i18n.members}`}
                     valueClass='text-green-700'
                 />
@@ -154,12 +294,14 @@ export default function PaymentsPage() {
                     valueClass='text-amber-700'
                 />
                 <StatCard
-                    label={i18n.cashOnline}
-                    value={`${payments.filter((p) => p.method === 'cash').length} / ${payments.filter((p) => p.method !== 'cash').length}`}
-                    valueClass='text-stone-700'
+                    label={i18n.imamFoodAllowance}
+                    value={imamFoodTotal > 0 ? formatCurrency(imamFoodTotal) : '—'}
+                    sub={imamFoodPayments.length > 0 ? `${imamFoodPayments.length} payments` : 'None this month'}
+                    valueClass='text-purple-700'
                 />
             </div>
 
+            {/* Pending members */}
             {unpaidMembers.length > 0 && (
                 <Card className='mb-5 border-amber-100'>
                     <p className='text-xs font-medium text-amber-700 mb-2 flex items-center gap-1.5'>
@@ -173,14 +315,17 @@ export default function PaymentsPage() {
                                 onClick={() => openModal(m.id)}
                                 className='text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-md px-2 py-1 hover:bg-amber-100 transition-colors'
                             >
-                                {m.id} ·{' '}
-                                {lang === 'ml' ? m.name_ml || m.name : m.name}
+                                {m.id} · {lang === 'ml' ? m.name_ml || m.name : m.name}
+                                {m.due_from_month && (
+                                    <span className='ml-1 text-red-500'>⚠</span>
+                                )}
                             </button>
                         ))}
                     </div>
                 </Card>
             )}
 
+            {/* Payments table */}
             <Card padding={false}>
                 <div className='overflow-x-auto'>
                     <table className='w-full text-sm'>
@@ -188,6 +333,7 @@ export default function PaymentsPage() {
                             <tr className='bg-stone-50 border-b border-stone-200'>
                                 {[
                                     i18n.members,
+                                    i18n.month,
                                     i18n.amount,
                                     i18n.paymentMethod,
                                     i18n.date,
@@ -205,24 +351,22 @@ export default function PaymentsPage() {
                         </thead>
                         <tbody className='divide-y divide-stone-100'>
                             {payments.map((p) => {
-                                const member = members.find(
-                                    (m) => m.id === p.member_id,
-                                );
+                                const member = members.find((m) => m.id === p.member_id);
                                 return member ? (
-                                    <tr
-                                        key={p.id}
-                                        className='hover:bg-stone-50'
-                                    >
+                                    <tr key={p.id} className='hover:bg-stone-50'>
                                         <td className='px-4 py-3'>
                                             <p className='font-medium text-stone-900'>
                                                 {lang === 'ml'
-                                                    ? member.name_ml ||
-                                                      member.name
+                                                    ? member.name_ml || member.name
                                                     : member.name}
+                                                {imamFoodBadge(p)}
                                             </p>
                                             <p className='text-xs text-stone-400'>
                                                 {member.id}
                                             </p>
+                                        </td>
+                                        <td className='px-4 py-3 text-stone-600 text-xs font-mono'>
+                                            {formatMonth(p.month, lang)}
                                         </td>
                                         <td className='px-4 py-3 font-semibold text-green-700'>
                                             {formatCurrency(p.amount)}
@@ -252,9 +396,7 @@ export default function PaymentsPage() {
                                         </td>
                                         <td className='px-4 py-3'>
                                             <button
-                                                onClick={() =>
-                                                    setConfirmDelete(p)
-                                                }
+                                                onClick={() => setConfirmDelete(p)}
                                                 className='p-1.5 rounded hover:bg-red-50 text-stone-300 hover:text-red-500 transition-colors'
                                             >
                                                 <Trash2 size={14} />
@@ -271,27 +413,25 @@ export default function PaymentsPage() {
                 </div>
             </Card>
 
+            {/* ── Record Payment Modal ── */}
             <Modal
                 open={showModal}
-                onClose={() => {
-                    if (!saving) setShowModal(false);
-                }}
+                onClose={() => { if (!saving) setShowModal(false); }}
                 title={i18n.recordPayment}
             >
                 <div className='space-y-4'>
+                    {/* Member selector */}
                     <Select
                         label={`${i18n.members} *`}
                         value={form.member_id}
-                        onChange={(e) => f('member_id', e.target.value)}
+                        onChange={(e) => handleMemberChange(e.target.value)}
                     >
                         <option value=''>{i18n.selectMember}</option>
                         <optgroup label={i18n.pendingGroup}>
                             {unpaidMembers.map((m) => (
                                 <option key={m.id} value={m.id}>
-                                    {m.id} –{' '}
-                                    {lang === 'ml'
-                                        ? m.name_ml || m.name
-                                        : m.name}
+                                    {m.id} – {lang === 'ml' ? m.name_ml || m.name : m.name}
+                                    {m.due_from_month ? ' ⚠' : ''}
                                 </option>
                             ))}
                         </optgroup>
@@ -300,23 +440,98 @@ export default function PaymentsPage() {
                                 .filter((m) => paidMemberIds.has(m.id))
                                 .map((m) => (
                                     <option key={m.id} value={m.id}>
-                                        {m.id} –{' '}
-                                        {lang === 'ml'
-                                            ? m.name_ml || m.name
-                                            : m.name}{' '}
-                                        ✓
+                                        {m.id} – {lang === 'ml' ? m.name_ml || m.name : m.name} ✓
                                     </option>
                                 ))}
                         </optgroup>
                     </Select>
+
+                    {/* Payment Type selector */}
+                    <Select
+                        label={i18n.paymentType}
+                        value={form.payment_type}
+                        onChange={(e) => {
+                            f('payment_type', e.target.value);
+                            // Reset month lock when switching to imam_food
+                            if (e.target.value === 'imam_food') {
+                                setTargetMonth(null);
+                            } else if (selectedMember?.due_from_month) {
+                                // Re-apply due month lock when back to monthly
+                                const { target } = computeTargetMonth(
+                                    selectedMember.due_from_month,
+                                    memberPaidMonths,
+                                );
+                                setTargetMonth(target);
+                                f('month', target);
+                            }
+                        }}
+                    >
+                        <option value='monthly'>{i18n.paymentTypeMonthly}</option>
+                        <option value='imam_food'>{i18n.paymentTypeImamFood}</option>
+                    </Select>
+
+                    {/* Loading indicator */}
+                    {loadingMemberPayments && (
+                        <div className='flex items-center gap-2 text-xs text-stone-500 py-1'>
+                            <div className='w-4 h-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin shrink-0' />
+                            <span>Checking payment history…</span>
+                        </div>
+                    )}
+
+                    {/* Due month banner (only for monthly payments) */}
+                    {!loadingMemberPayments && isDueMonth && targetMonth && (
+                        <div className='flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5'>
+                            <AlertCircle size={15} className='text-amber-600 mt-0.5 shrink-0' />
+                            <div className='text-xs text-amber-800'>
+                                <p className='font-semibold mb-0.5'>{i18n.dueAutoSelected}</p>
+                                <p>
+                                    Paying for{' '}
+                                    <span className='font-bold'>{formatMonth(targetMonth, lang)}</span>
+                                    {selectedMember?.due_from_month && (
+                                        <> — due since <span className='font-bold'>{formatMonth(selectedMember.due_from_month, lang)}</span></>
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* All dues cleared banner */}
+                    {!loadingMemberPayments && allDuesCleared && hasDues && form.payment_type === 'monthly' && (
+                        <div className='flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5'>
+                            <CheckCircle2 size={15} className='text-green-600 shrink-0' />
+                            <p className='text-xs text-green-800 font-medium'>{i18n.allDuesCleared}</p>
+                        </div>
+                    )}
+
+                    {/* Month picker — locked for due members on monthly type */}
+                    <Select
+                        label={`${i18n.month} *`}
+                        value={form.month}
+                        onChange={(e) => f('month', e.target.value)}
+                        disabled={isDueMonth}
+                    >
+                        {availableMonthOptions.length === 0 ? (
+                            <option value={form.month}>{formatMonth(form.month, lang)}</option>
+                        ) : (
+                            availableMonthOptions.map((m) => (
+                                <option key={m} value={m}>
+                                    {formatMonth(m, lang)}
+                                </option>
+                            ))
+                        )}
+                    </Select>
+                    {isDueMonth && (
+                        <p className='text-xs text-stone-400 -mt-2'>
+                            Month locked to earliest unpaid due month. Dues must be cleared in order.
+                        </p>
+                    )}
+
                     <div className='grid grid-cols-2 gap-3'>
                         <Input
                             label={`${i18n.amount} (₹) *`}
                             type='number'
                             value={form.amount}
-                            onChange={(e) =>
-                                f('amount', Number(e.target.value))
-                            }
+                            onChange={(e) => f('amount', Number(e.target.value))}
                         />
                         <Select
                             label={i18n.paymentMethod}
@@ -350,14 +565,13 @@ export default function PaymentsPage() {
                             onClick={handleSave}
                             loading={saving}
                             className='flex-1'
+                            disabled={!form.member_id || loadingMemberPayments}
                         >
                             {i18n.savePayment}
                         </Button>
                         <Button
                             variant='secondary'
-                            onClick={() => {
-                                if (!saving) setShowModal(false);
-                            }}
+                            onClick={() => { if (!saving) setShowModal(false); }}
                         >
                             {i18n.cancel}
                         </Button>
