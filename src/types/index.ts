@@ -2,7 +2,7 @@
 // Database Types
 // ============================================
 
-export type Role = 'superadmin' | 'admin' | 'member'
+export type Role = 'superadmin' | 'admin' | 'member' | 'agent'
 export type MemberStatus = 'active' | 'inactive'
 export type PaymentMethod = 'cash' | 'online' | 'bank'
 export type PaymentType = 'monthly' | 'imam_food'

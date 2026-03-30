@@ -11,6 +11,7 @@ import ExpensesPage from '@/pages/admin/Expenses';
 import ReportsPage from '@/pages/admin/Reports';
 import SettingsPage from '@/pages/admin/Settings';
 import MemberPortal from '@/pages/member/MemberPortal';
+import AgentApp from '@/pages/agent/AgentApp';
 import { Spinner } from '@/components/ui';
 import { ReactNode } from 'react';
 
@@ -24,6 +25,20 @@ function ProtectedAdmin({ children }: { children: ReactNode }) {
         );
     if (!profile) return <Navigate to='/login' replace />;
     if (profile.role === 'member') return <Navigate to='/member' replace />;
+    if (profile.role === 'agent') return <Navigate to='/agent' replace />;
+    return <>{children}</>;
+}
+
+function ProtectedAgent({ children }: { children: ReactNode }) {
+    const { profile, loading } = useAuth();
+    if (loading)
+        return (
+            <div className='min-h-screen flex items-center justify-center bg-stone-100'>
+                <Spinner />
+            </div>
+        );
+    if (!profile) return <Navigate to='/login' replace />;
+    if (profile.role !== 'agent') return <Navigate to='/' replace />;
     return <>{children}</>;
 }
 
@@ -121,11 +136,21 @@ function AppRoutes() {
                 }
             />
             <Route
+                path='/agent'
+                element={
+                    <ProtectedAgent>
+                        <AgentApp />
+                    </ProtectedAgent>
+                }
+            />
+            <Route
                 path='/'
                 element={
                     profile ? (
                         profile.role === 'member' ? (
                             <Navigate to='/member' replace />
+                        ) : profile.role === 'agent' ? (
+                            <Navigate to='/agent' replace />
                         ) : (
                             <Navigate to='/admin' replace />
                         )
