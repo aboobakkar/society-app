@@ -29,6 +29,7 @@ const EMPTY_FORM = {
     notes: '',
     opening_balance: 0,
     due_from_month: '',
+    advance_balance: 0,
 };
 
 export default function MembersPage() {
@@ -72,6 +73,7 @@ export default function MembersPage() {
             notes: m.notes || '',
             opening_balance: m.opening_balance || 0,
             due_from_month: m.due_from_month || '',
+            advance_balance: m.advance_balance || 0,
         });
         setEditId(m.id);
         setShowModal(true);
@@ -223,6 +225,10 @@ export default function MembersPage() {
                                             <span className='inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-0.5'>
                                                 {formatCurrency(m.opening_balance)}
                                                 <span className='text-amber-400 font-normal'>from {m.due_from_month}</span>
+                                            </span>
+                                        ) : (m.advance_balance || 0) > 0 ? (
+                                            <span className='inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-md px-2 py-0.5'>
+                                                +{formatCurrency(m.advance_balance)} advance
                                             </span>
                                         ) : (
                                             <span className='text-stone-300 text-xs'>—</span>

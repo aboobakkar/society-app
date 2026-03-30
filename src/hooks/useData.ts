@@ -137,7 +137,24 @@ export function usePayments(month?: string) {
     } catch (e: any) { toast.error(e?.message || 'Unexpected error'); return false }
   }
 
-  return { payments, loading, refetch: fetch, addPayment, deletePayment }
+  const addPaymentsBulk = async (payments: {
+    member_id: string; month: string; amount: number; method: string
+    payment_type?: string; payment_date: string; reference_no?: string; notes?: string; recorded_by?: string
+  }[]) => {
+    try {
+      const { error } = await supabase.from('payments').insert(payments)
+      if (error) {
+        if (error.code === '23505') toast.error('One or more months already have a payment recorded')
+        else toast.error(error.message)
+        return false
+      }
+      toast.success(`${payments.length} payment${payments.length > 1 ? 's' : ''} recorded`)
+      await silentRefetch()
+      return true
+    } catch (e: any) { toast.error(e?.message || 'Unexpected error'); return false }
+  }
+
+  return { payments, loading, refetch: fetch, addPayment, deletePayment, addPaymentsBulk }
 }
 
 // ============================================
