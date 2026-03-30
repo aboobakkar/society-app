@@ -21,6 +21,7 @@ interface AuthContextType {
     signOut: () => Promise<void>;
     isAdmin: boolean;
     isSuperAdmin: boolean;
+    isAgent: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -141,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
     const isSuperAdmin = profile?.role === 'superadmin';
+    const isAgent = profile?.role === 'agent';
 
     return (
         <AuthContext.Provider
@@ -153,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 signOut,
                 isAdmin,
                 isSuperAdmin,
+                isAgent,
             }}
         >
             {children}
