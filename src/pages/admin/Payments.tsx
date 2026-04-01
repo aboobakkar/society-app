@@ -23,7 +23,8 @@ import {
     formatDate,
 } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
-import { Plus, Trash2, Clock, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-react';
+import { Plus, Trash2, Clock, AlertCircle, CheckCircle2, TrendingUp, History } from 'lucide-react';
+import { PaymentLogModal } from './PaymentLogModal';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ export default function PaymentsPage() {
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState<Payment | null>(null);
+    const [logPaymentId, setLogPaymentId] = useState<string | null>(null);
 
     // ── Form state ────────────────────────────────────────────────────────────
     const [form, setForm] = useState({
@@ -425,7 +427,7 @@ export default function PaymentsPage() {
                     <table className='w-full text-sm'>
                         <thead>
                             <tr className='bg-stone-50 border-b border-stone-200'>
-                                {[i18n.members, i18n.month, i18n.amount, i18n.paymentMethod, i18n.date, i18n.reference, ''].map((h, i) => (
+                                {[i18n.members, i18n.month, i18n.amount, i18n.paymentMethod, i18n.date, i18n.reference, 'Recorded By', ''].map((h, i) => (
                                     <th key={i} className='px-4 py-3 text-left text-xs font-medium text-stone-500'>
                                         {h}
                                     </th>
@@ -464,13 +466,25 @@ export default function PaymentsPage() {
                                         <td className='px-4 py-3 text-stone-400 text-xs'>
                                             {p.reference_no || '—'}
                                         </td>
+                                        <td className='px-4 py-3 text-xs text-stone-400'>
+                                            {(p as any).recorded_by_profile?.full_name || (p as any).recorded_by_profile?.email || '—'}
+                                        </td>
                                         <td className='px-4 py-3'>
-                                            <button
-                                                onClick={() => setConfirmDelete(p)}
-                                                className='p-1.5 rounded hover:bg-red-50 text-stone-300 hover:text-red-500 transition-colors'
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            <div className='flex gap-1.5'>
+                                                <button
+                                                    onClick={() => setLogPaymentId(p.id)}
+                                                    className='p-1.5 rounded hover:bg-amber-50 text-stone-300 hover:text-amber-500 transition-colors'
+                                                    title='View history'
+                                                >
+                                                    <History size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => setConfirmDelete(p)}
+                                                    className='p-1.5 rounded hover:bg-red-50 text-stone-300 hover:text-red-500 transition-colors'
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : null;
@@ -741,6 +755,12 @@ export default function PaymentsPage() {
                     </div>
                 </div>
             </Modal>
+
+            <PaymentLogModal
+                paymentId={logPaymentId}
+                open={!!logPaymentId}
+                onClose={() => setLogPaymentId(null)}
+            />
 
             <ConfirmDialog
                 open={!!confirmDelete}

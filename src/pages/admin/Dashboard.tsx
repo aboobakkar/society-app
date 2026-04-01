@@ -1,4 +1,5 @@
 import { useMembers, usePayments, useExpenses } from '@/hooks/useData';
+import { useRentalIncome } from '@/hooks/useFeatures';
 import { useLang } from '@/hooks/useLang';
 import { StatCard, Card, Badge } from '@/components/ui';
 import {
@@ -28,6 +29,7 @@ export default function AdminDashboard() {
     const { members, loading: mLoading } = useMembers();
     const { payments, loading: pLoading } = usePayments(currentMonth);
     const { expenses, loading: eLoading } = useExpenses(currentMonth);
+    const { totalRental, loading: rLoading } = useRentalIncome(currentMonth);
 
     // Never block the full page — render with whatever data is available
     const activeMembers = members.filter((m) => m.status === 'active');
@@ -48,7 +50,7 @@ export default function AdminDashboard() {
             ? Math.round((totalCollected / expectedTotal) * 100)
             : 0;
 
-    const dataLoading = mLoading || pLoading || eLoading;
+    const dataLoading = mLoading || pLoading || eLoading || rLoading;
 
     return (
         <div>
@@ -67,7 +69,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats — show skeleton values while loading */}
-            <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6'>
+            <div className='grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6'>
                 <StatCard
                     label={i18n.collected}
                     value={pLoading ? '...' : formatCurrency(totalCollected)}
@@ -99,6 +101,12 @@ export default function AdminDashboard() {
                     value={pLoading ? '...' : imamFoodCollected > 0 ? formatCurrency(imamFoodCollected) : '—'}
                     sub={pLoading ? '' : imamFoodPayments.length > 0 ? `${imamFoodPayments.length} payments` : 'None this month'}
                     valueClass='text-purple-700'
+                />
+                <StatCard
+                    label="Rental Income"
+                    value={rLoading ? '...' : totalRental > 0 ? formatCurrency(totalRental) : '—'}
+                    sub="tools rental this month"
+                    valueClass='text-teal-700'
                 />
             </div>
 
