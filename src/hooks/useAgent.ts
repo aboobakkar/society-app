@@ -5,7 +5,7 @@ import { getCurrentMonth } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 // ============================================
-// DUE MEMBERS — members with no payment for a given month
+// DUE MEMBERS
 // ============================================
 export function useDueMembers(month?: string) {
   const targetMonth = month || getCurrentMonth()
@@ -14,46 +14,33 @@ export function useDueMembers(month?: string) {
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    // Get all active members
     const { data: allMembers, error: mErr } = await supabase
       .from('members')
       .select('*')
       .eq('status', 'active')
       .order('name')
 
-    if (mErr) {
-      console.error('[useDueMembers] members:', mErr.message)
-      setLoading(false)
-      return
-    }
+    if (mErr) { console.error('[useDueMembers] members:', mErr.message); setLoading(false); return }
 
-    // Get members who already paid this month
     const { data: paidData, error: pErr } = await supabase
       .from('payments')
       .select('member_id')
       .eq('month', targetMonth)
 
-    if (pErr) {
-      console.error('[useDueMembers] payments:', pErr.message)
-      setLoading(false)
-      return
-    }
+    if (pErr) { console.error('[useDueMembers] payments:', pErr.message); setLoading(false); return }
 
     const paidIds = new Set((paidData || []).map(p => p.member_id))
-    const dueMembers = (allMembers || []).filter(m => !paidIds.has(m.id))
-    setMembers(dueMembers as Member[])
+    setMembers((allMembers || []).filter(m => !paidIds.has(m.id)) as Member[])
     setLoading(false)
   }, [targetMonth])
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
+  useEffect(() => { fetch() }, [fetch])
 
   return { members, loading, refetch: fetch }
 }
 
 // ============================================
-// TODAY'S SUMMARY — payments recorded by this agent today
+// TODAY'S SUMMARY — with cash/UPI/bank breakdown
 // ============================================
 export function useTodaySummary() {
   const [payments, setPayments] = useState<Payment[]>([])
@@ -78,13 +65,21 @@ export function useTodaySummary() {
     setLoading(false)
   }, [today])
 
-  useEffect(() => {
-    fetch()
-  }, [fetch])
+  useEffect(() => { fetch() }, [fetch])
 
   const totalToday = payments.reduce((s, p) => s + p.amount, 0)
+  const cashTotal = payments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0)
+  const onlineTotal = payments.filter(p => p.method === 'online').reduce((s, p) => s + p.amount, 0)
+  const bankTotal = payments.filter(p => p.method === 'bank').reduce((s, p) => s + p.amount, 0)
+  const cashCount = payments.filter(p => p.method === 'cash').length
+  const onlineCount = payments.filter(p => p.method === 'online').length
 
-  return { payments, totalToday, count: payments.length, loading, refetch: fetch }
+  return {
+    payments, totalToday, count: payments.length,
+    cashTotal, onlineTotal, bankTotal,
+    cashCount, onlineCount,
+    loading, refetch: fetch
+  }
 }
 
 // ============================================
@@ -133,15 +128,42 @@ export async function recordPayment(params: {
     })
 
     if (error) {
-      if (error.code === '23505') {
-        toast.error('Payment already recorded for this member this month')
-      } else {
-        toast.error(error.message)
-      }
+      if (error.code === '23505') toast.error('Payment already recorded for this member this month')
+      else toast.error(error.message)
       return false
     }
-
     toast.success('Payment recorded ✓')
+    return true
+  } catch (e: any) {
+    toast.error(e?.message || 'Unexpected error')
+    return false
+  }
+}
+
+// ============================================
+// RECORD RENTAL INCOME — agent inserts rental
+// ============================================
+export async function recordRental(params: {
+  payerName: string
+  payerMobile?: string
+  amount: number
+  description?: string
+  notes?: string
+  recordedBy: string
+}): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('rental_income').insert({
+      payer_name: params.payerName,
+      payer_mobile: params.payerMobile || null,
+      amount: params.amount,
+      income_date: new Date().toISOString().split('T')[0],
+      description: params.description || null,
+      notes: params.notes || null,
+      recorded_by: params.recordedBy,
+    })
+
+    if (error) { toast.error(error.message); return false }
+    toast.success('Rental income recorded ✓')
     return true
   } catch (e: any) {
     toast.error(e?.message || 'Unexpected error')
