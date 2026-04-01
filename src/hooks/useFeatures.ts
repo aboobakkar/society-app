@@ -3,6 +3,12 @@ import { supabase } from '@/lib/supabase'
 import { RentalIncome, AgentCollectionSummary, DailyCollectionSummary, PaymentLog } from '@/types'
 import toast from 'react-hot-toast'
 
+// Returns the last day of a month as YYYY-MM-DD
+function getMonthEnd(year: string, month: string): string {
+  const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+  return `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+}
+
 // Re-use the same useWhenReady pattern from useData.ts
 function useWhenReady(cb: () => void) {
   const cbRef = useRef(cb)
@@ -35,7 +41,7 @@ export function useRentalIncome(month?: string) {
       const [y, m] = month.split('-')
       query = query
         .gte('income_date', `${y}-${m}-01`)
-        .lte('income_date', `${y}-${m}-31`)
+        .lte('income_date', getMonthEnd(y, m))
     }
     const { data, error } = await query
     if (error) console.error('[useRentalIncome]', error.message)

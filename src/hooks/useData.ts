@@ -168,7 +168,7 @@ export function useExpenses(month?: string) {
     let query = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
     if (month) {
       const [y, m] = month.split('-')
-      query = query.gte('expense_date', `${y}-${m}-01`).lte('expense_date', `${y}-${m}-31`)
+      query = query.gte('expense_date', `${y}-${m}-01`).lte('expense_date', (() => { const d = new Date(parseInt(y), parseInt(m), 0); return `${y}-${m}-${String(d.getDate()).padStart(2,'0')}` })())
     }
     const { data, error } = await query
     if (error) console.error('[useExpenses]', error.message)
