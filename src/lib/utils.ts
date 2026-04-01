@@ -30,10 +30,14 @@ export function getCurrentMonth(): string {
 }
 
 export function getMonthOptions(fromYear = 2023, toYear?: number): string[] {
-  const endYear = toYear ?? new Date().getFullYear() + 1
+  const now = new Date()
+  // Never show future months by default
+  const endYear = toYear ?? now.getFullYear()
+  const endMonth = toYear ? 12 : now.getMonth() + 1
   const options: string[] = []
   for (let y = fromYear; y <= endYear; y++) {
-    for (let m = 1; m <= 12; m++) {
+    const lastMonth = y === endYear ? endMonth : 12
+    for (let m = 1; m <= lastMonth; m++) {
       options.push(`${y}-${String(m).padStart(2, '0')}`)
     }
   }

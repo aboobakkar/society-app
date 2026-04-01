@@ -8,7 +8,8 @@ export default function AgentCollectionsPage() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
   const { byAgent, loading: agentLoading } = useAgentSummary(selectedMonth)
   const { data: dailyData, loading: dailyLoading } = useDailyCollection(selectedMonth)
-  const monthOptions = getMonthOptions(2023)
+  const currentMonth2 = getCurrentMonth()
+  const monthOptions = getMonthOptions(2023).filter(m => m <= currentMonth2)
 
   const totalByAgents = byAgent.reduce((s, a) => s + a.total_amount, 0)
   const totalDays = dailyData.length

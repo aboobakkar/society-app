@@ -27,7 +27,8 @@ export default function RentalIncomePage() {
   const [confirmDelete, setConfirmDelete] = useState<RentalIncome | null>(null)
   const [form, setForm] = useState({ ...EMPTY_FORM })
 
-  const monthOptions = getMonthOptions(2023)
+  const currentMonth = getCurrentMonth()
+  const monthOptions = getMonthOptions(2023).filter(m => m <= currentMonth)
   const f = (k: string, v: string | number) => setForm(p => ({ ...p, [k]: v }))
 
   const resetForm = () => setForm({ ...EMPTY_FORM })
