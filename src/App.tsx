@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { LangProvider } from '@/hooks/useLang';
 import { AdminLayout } from '@/components/layout/AdminLayout';
+import { PWAInstallBanner } from '@/components/PWAInstallBanner';
 import LoginPage from '@/pages/LoginPage';
 import AdminDashboard from '@/pages/admin/Dashboard';
 import MembersPage from '@/pages/admin/Members';
@@ -67,98 +68,23 @@ function AppRoutes() {
     return (
         <Routes>
             <Route path='/login' element={<LoginPage />} />
-            <Route
-                path='/admin'
-                element={
-                    <ProtectedAdmin>
-                        <AdminLayout>
-                            <AdminDashboard />
-                        </AdminLayout>
-                    </ProtectedAdmin>
-                }
-            />
-            <Route
-                path='/admin/members'
-                element={
-                    <ProtectedAdmin>
-                        <AdminLayout>
-                            <MembersPage />
-                        </AdminLayout>
-                    </ProtectedAdmin>
-                }
-            />
-            <Route
-                path='/admin/payments'
-                element={
-                    <ProtectedAdmin>
-                        <AdminLayout>
-                            <PaymentsPage />
-                        </AdminLayout>
-                    </ProtectedAdmin>
-                }
-            />
-            <Route
-                path='/admin/expenses'
-                element={
-                    <ProtectedAdmin>
-                        <AdminLayout>
-                            <ExpensesPage />
-                        </AdminLayout>
-                    </ProtectedAdmin>
-                }
-            />
-            <Route
-                path='/admin/reports'
-                element={
-                    <ProtectedAdmin>
-                        <AdminLayout>
-                            <ReportsPage />
-                        </AdminLayout>
-                    </ProtectedAdmin>
-                }
-            />
-            <Route
-                path='/admin/settings'
-                element={
-                    <ProtectedAdmin>
-                        <AdminLayout>
-                            <SettingsPage />
-                        </AdminLayout>
-                    </ProtectedAdmin>
-                }
-            />
-            <Route
-                path='/member'
-                element={
-                    <ProtectedMember>
-                        <MemberPortal />
-                    </ProtectedMember>
-                }
-            />
-            <Route
-                path='/agent'
-                element={
-                    <ProtectedAgent>
-                        <AgentApp />
-                    </ProtectedAgent>
-                }
-            />
-            <Route
-                path='/'
-                element={
-                    profile ? (
-                        profile.role === 'member' ? (
-                            <Navigate to='/member' replace />
-                        ) : profile.role === 'agent' ? (
-                            <Navigate to='/agent' replace />
-                        ) : (
-                            <Navigate to='/admin' replace />
-                        )
-                    ) : (
-                        <Navigate to='/login' replace />
-                    )
-                }
-            />
+            <Route path='/admin' element={<ProtectedAdmin><AdminLayout><AdminDashboard /></AdminLayout></ProtectedAdmin>} />
+            <Route path='/admin/members' element={<ProtectedAdmin><AdminLayout><MembersPage /></AdminLayout></ProtectedAdmin>} />
+            <Route path='/admin/payments' element={<ProtectedAdmin><AdminLayout><PaymentsPage /></AdminLayout></ProtectedAdmin>} />
+            <Route path='/admin/expenses' element={<ProtectedAdmin><AdminLayout><ExpensesPage /></AdminLayout></ProtectedAdmin>} />
+            <Route path='/admin/reports' element={<ProtectedAdmin><AdminLayout><ReportsPage /></AdminLayout></ProtectedAdmin>} />
+            <Route path='/admin/settings' element={<ProtectedAdmin><AdminLayout><SettingsPage /></AdminLayout></ProtectedAdmin>} />
+            <Route path='/member' element={<ProtectedMember><MemberPortal /></ProtectedMember>} />
+            <Route path='/agent' element={<ProtectedAgent><AgentApp /></ProtectedAgent>} />
+            <Route path='/' element={
+                profile ? (
+                    profile.role === 'member' ? <Navigate to='/member' replace /> :
+                    profile.role === 'agent' ? <Navigate to='/agent' replace /> :
+                    <Navigate to='/admin' replace />
+                ) : (
+                    <Navigate to='/login' replace />
+                )
+            } />
             <Route path='*' element={<Navigate to='/' replace />} />
         </Routes>
     );
@@ -170,6 +96,8 @@ export default function App() {
             <LangProvider>
                 <AuthProvider>
                     <AppRoutes />
+                    {/* PWA Install Banner — shows on first visit */}
+                    <PWAInstallBanner />
                     <Toaster
                         position='top-right'
                         toastOptions={{
