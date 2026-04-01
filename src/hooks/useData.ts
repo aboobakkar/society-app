@@ -109,6 +109,7 @@ export function usePayments(month?: string) {
   }, [silentRefetch])
 
   useWhenReady(fetch)
+  useEffect(() => { fetch() }, [fetch])
 
   const addPayment = async (payment: {
     member_id: string; month: string; amount: number; method: string
@@ -182,6 +183,7 @@ export function useExpenses(month?: string) {
   }, [silentRefetch])
 
   useWhenReady(fetch)
+  useEffect(() => { fetch() }, [fetch])
 
   const addExpense = async (expense: {
     category: string; description: string; amount: number; expense_date: string
