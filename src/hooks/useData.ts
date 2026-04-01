@@ -95,7 +95,7 @@ export function usePayments(month?: string) {
   const [loading, setLoading] = useState(true)
 
   const silentRefetch = useCallback(async () => {
-    let query = supabase.from('payments').select('*, member:members(*)').order('created_at', { ascending: false })
+    let query = supabase.from('payments').select('*, member:members(*), recorded_by_profile:profiles!payments_recorded_by_fkey(full_name, email)').order('created_at', { ascending: false })
     if (month) query = query.eq('month', month)
     const { data, error } = await query
     if (error) console.error('[usePayments]', error.message)

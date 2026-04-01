@@ -7,6 +7,7 @@ export type MemberStatus = 'active' | 'inactive'
 export type PaymentMethod = 'cash' | 'online' | 'bank'
 export type PaymentType = 'monthly' | 'imam_food'
 export type ExpenseCategory = 'salary' | 'utility' | 'maintenance' | 'event' | 'other'
+export type LogAction = 'created' | 'updated' | 'deleted'
 
 export interface Profile {
   id: string
@@ -19,18 +20,18 @@ export interface Profile {
 }
 
 export interface Member {
-  id: string          // SCY001, SCY002...
+  id: string
   name: string
   name_ml: string | null
   mobile: string
   monthly_amount: number
   status: MemberStatus
   address: string | null
-  joined_month: string  // YYYY-MM
+  joined_month: string
   notes: string | null
-  opening_balance: number      // total previous dues amount (0 = no dues)
-  due_from_month: string | null // YYYY-MM — earliest month of previous dues
-  advance_balance: number      // overpayment stored for future deduction
+  opening_balance: number
+  due_from_month: string | null
+  advance_balance: number
   created_at: string
   updated_at: string
 }
@@ -38,17 +39,34 @@ export interface Member {
 export interface Payment {
   id: string
   member_id: string
-  month: string         // YYYY-MM
+  month: string
   amount: number
   method: PaymentMethod
-  payment_type: PaymentType  // 'monthly' | 'imam_food'
-  payment_date: string  // YYYY-MM-DD
+  payment_type: PaymentType
+  payment_date: string
   reference_no: string | null
   notes: string | null
   recorded_by: string | null
   created_at: string
-  // joined
   member?: Member
+}
+
+export interface PaymentLog {
+  id: string
+  payment_id: string | null
+  action: LogAction
+  member_id: string | null
+  month: string | null
+  amount: number | null
+  method: string | null
+  payment_type: string | null
+  payment_date: string | null
+  notes: string | null
+  changed_by: string | null
+  changed_by_name: string | null
+  changed_at: string
+  old_data: Record<string, any> | null
+  new_data: Record<string, any> | null
 }
 
 export interface Expense {
@@ -56,12 +74,48 @@ export interface Expense {
   category: ExpenseCategory
   description: string
   amount: number
-  expense_date: string  // YYYY-MM-DD
+  expense_date: string
   paid_to: string | null
   reference_no: string | null
   notes: string | null
   recorded_by: string | null
   created_at: string
+}
+
+export interface RentalIncome {
+  id: string
+  payer_name: string
+  payer_mobile: string | null
+  amount: number
+  income_date: string
+  description: string | null
+  notes: string | null
+  recorded_by: string | null
+  created_at: string
+}
+
+export interface AgentCollectionSummary {
+  recorded_by: string | null
+  agent_name: string | null
+  agent_email: string | null
+  collection_date: string
+  collection_month: string
+  payment_count: number
+  total_amount: number
+  cash_count: number
+  online_count: number
+  bank_count: number
+}
+
+export interface DailyCollectionSummary {
+  day: string
+  month: string
+  payment_count: number
+  total_amount: number
+  cash_count: number
+  online_count: number
+  cash_amount: number
+  online_amount: number
 }
 
 export interface Settings {
@@ -77,7 +131,6 @@ export interface Settings {
 // ============================================
 // App-level types
 // ============================================
-
 export interface MonthlyReport {
   month: string
   payment_count: number
