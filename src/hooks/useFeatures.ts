@@ -55,6 +55,8 @@ export function useRentalIncome(month?: string) {
   }, [silentRefetch])
 
   useWhenReady(fetch)
+  // Re-fetch when month changes (useWhenReady only fires once on session ready)
+  useEffect(() => { fetch() }, [fetch])
 
   const addRental = async (record: {
     payer_name: string
