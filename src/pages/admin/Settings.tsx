@@ -293,9 +293,18 @@ export default function SettingsPage() {
 
       {/* Agents Tab */}
       {activeTab === 'agents' && (
-        <Card>
-          <AgentsPanel />
-        </Card>
+        <>
+          <Card className="mb-4">
+            <AgentsPanel />
+          </Card>
+          <Card>
+            <h2 className="text-sm font-semibold text-stone-800 mb-1">Cash Holding Persons</h2>
+            <p className="text-xs text-stone-400 mb-4">
+              Agents select who they hand cash to when recording cash payments on mobile.
+            </p>
+            <HoldingPersonsEditor />
+          </Card>
+        </>
       )}
 
       {/* Security Tab */}
