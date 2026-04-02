@@ -27,6 +27,7 @@ export function useDueMembers(month?: string) {
       .from('payments')
       .select('member_id')
       .eq('month', targetMonth)
+      .eq('payment_type', 'monthly')   // only monthly payments count as "paid" for due list
 
     if (pErr) { console.error('[useDueMembers] payments:', pErr.message); setLoading(false); return }
 
@@ -53,7 +54,7 @@ export function useAllMembers() {
     const [{ data: allData }, { data: paidData }] = await Promise.all([
       supabase.from('members').select('*').eq('status', 'active')
         .order('collection_order', { ascending: true }).order('id', { ascending: true }),
-      supabase.from('payments').select('member_id').eq('month', currentMonth)
+      supabase.from('payments').select('member_id').eq('month', currentMonth).eq('payment_type', 'monthly')
     ])
     if (allData) setMembers(allData as Member[])
     if (paidData) setPaidThisMonth(new Set(paidData.map(p => p.member_id)))
