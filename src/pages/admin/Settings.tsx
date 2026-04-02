@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Button, Input, Card, PageHeader, Spinner } from '@/components/ui'
 import { Users, Settings2, Lock, UserPlus, Trash2, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { HoldingPersonsEditor } from './HoldingPersonsEditor'
 
 type SettingsTab = 'society' | 'agents' | 'security'
 
