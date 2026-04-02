@@ -14,32 +14,59 @@ export function useDueMembers(month?: string) {
 
   const fetch = useCallback(async () => {
     setLoading(true)
+
+    // 1. Get all members
     const { data: allMembers, error: mErr } = await supabase
       .from('members')
       .select('*')
       .eq('status', 'active')
-      .order('collection_order', { ascending: true })   // route order
-      .order('id', { ascending: true })                  // fallback
+      .order('collection_order', { ascending: true })
+      .order('id', { ascending: true })
 
-    if (mErr) { console.error('[useDueMembers]', mErr.message); setLoading(false); return }
+    if (mErr) {
+      console.error('[useDueMembers]', mErr.message)
+      setLoading(false)
+      return
+    }
 
-    const { data: paidData, error: pErr } = await supabase
+    // 2. Get payments WITH AMOUNT
+    const { data: payments, error: pErr } = await supabase
       .from('payments')
-      .select('member_id')
+      .select('member_id, amount')
       .eq('month', targetMonth)
-      .eq('payment_type', 'monthly')   // only monthly payments count as "paid" for due list
+      .eq('payment_type', 'monthly')
 
-    if (pErr) { console.error('[useDueMembers] payments:', pErr.message); setLoading(false); return }
+    if (pErr) {
+      console.error('[useDueMembers] payments:', pErr.message)
+      setLoading(false)
+      return
+    }
 
-    const paidIds = new Set((paidData || []).map(p => p.member_id))
-    setMembers((allMembers || []).filter(m => !paidIds.has(m.id)) as Member[])
+    // 3. Sum payments per member
+    const paymentMap = new Map<number, number>()
+
+    payments?.forEach(p => {
+      const prev = paymentMap.get(p.member_id) || 0
+      paymentMap.set(p.member_id, prev + (p.amount || 0))
+    })
+
+    // 4. Filter due members
+    const dueMembers = (allMembers || []).filter(member => {
+      const paidAmount = paymentMap.get(member.id) || 0
+      const expectedAmount = member.monthly_fee || 0 // adjust field name
+
+      return paidAmount < expectedAmount
+    })
+
+    setMembers(dueMembers as Member[])
     setLoading(false)
+
   }, [targetMonth])
 
   useEffect(() => { fetch() }, [fetch])
+
   return { members, loading, refetch: fetch }
 }
-
 // ============================================
 // ALL MEMBERS — ordered by collection_order, paid ones pushed to bottom
 // ============================================
@@ -168,7 +195,7 @@ export async function recordPayment(params: {
   method: 'cash' | 'online' | 'bank'
   recordedBy: string
   notes?: string
-  holdingPerson?: string   // cash handed to whom
+  holdingPerson?: string
 }): Promise<boolean> {
   try {
     const noteText = [
@@ -210,6 +237,7 @@ export async function recordRental(params: {
   description?: string
   notes?: string
   recordedBy: string
+  holdingPerson?: string
 }): Promise<boolean> {
   try {
     const { error } = await supabase.from('rental_income').insert({
