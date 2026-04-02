@@ -5,7 +5,7 @@ import { getCurrentMonth } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 // ============================================
-// DUE MEMBERS
+// DUE MEMBERS — ordered by collection_order
 // ============================================
 export function useDueMembers(month?: string) {
   const targetMonth = month || getCurrentMonth()
@@ -18,9 +18,10 @@ export function useDueMembers(month?: string) {
       .from('members')
       .select('*')
       .eq('status', 'active')
-      .order('name')
+      .order('collection_order', { ascending: true })   // route order
+      .order('id', { ascending: true })                  // fallback
 
-    if (mErr) { console.error('[useDueMembers] members:', mErr.message); setLoading(false); return }
+    if (mErr) { console.error('[useDueMembers]', mErr.message); setLoading(false); return }
 
     const { data: paidData, error: pErr } = await supabase
       .from('payments')
@@ -35,17 +36,49 @@ export function useDueMembers(month?: string) {
   }, [targetMonth])
 
   useEffect(() => { fetch() }, [fetch])
-
   return { members, loading, refetch: fetch }
 }
 
 // ============================================
-// TODAY'S SUMMARY — with cash/UPI/bank breakdown
+// ALL MEMBERS — ordered by collection_order, paid ones pushed to bottom
+// ============================================
+export function useAllMembers() {
+  const [members, setMembers] = useState<Member[]>([])
+  const [paidThisMonth, setPaidThisMonth] = useState<Set<string>>(new Set())
+  const [loading, setLoading] = useState(true)
+  const currentMonth = getCurrentMonth()
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    const [{ data: allData }, { data: paidData }] = await Promise.all([
+      supabase.from('members').select('*').eq('status', 'active')
+        .order('collection_order', { ascending: true }).order('id', { ascending: true }),
+      supabase.from('payments').select('member_id').eq('month', currentMonth)
+    ])
+    if (allData) setMembers(allData as Member[])
+    if (paidData) setPaidThisMonth(new Set(paidData.map(p => p.member_id)))
+    setLoading(false)
+  }, [currentMonth])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  // Sort: unpaid first (in collection_order), paid at bottom
+  const sorted = [...members].sort((a, b) => {
+    const aPaid = paidThisMonth.has(a.id) ? 1 : 0
+    const bPaid = paidThisMonth.has(b.id) ? 1 : 0
+    if (aPaid !== bPaid) return aPaid - bPaid
+    return (a.collection_order ?? 999) - (b.collection_order ?? 999)
+  })
+
+  return { members: sorted, paidThisMonth, loading, refetch: fetch }
+}
+
+// ============================================
+// TODAY'S SUMMARY — with cash/UPI breakdown
 // ============================================
 export function useTodaySummary() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
-
   const today = new Date().toISOString().split('T')[0]
 
   const fetch = useCallback(async () => {
@@ -69,43 +102,63 @@ export function useTodaySummary() {
 
   const totalToday = payments.reduce((s, p) => s + p.amount, 0)
   const cashTotal = payments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0)
-  const onlineTotal = payments.filter(p => p.method === 'online').reduce((s, p) => s + p.amount, 0)
-  const bankTotal = payments.filter(p => p.method === 'bank').reduce((s, p) => s + p.amount, 0)
+  const onlineTotal = payments.filter(p => p.method !== 'cash').reduce((s, p) => s + p.amount, 0)
   const cashCount = payments.filter(p => p.method === 'cash').length
-  const onlineCount = payments.filter(p => p.method === 'online').length
+  const onlineCount = payments.filter(p => p.method !== 'cash').length
 
-  return {
-    payments, totalToday, count: payments.length,
-    cashTotal, onlineTotal, bankTotal,
-    cashCount, onlineCount,
-    loading, refetch: fetch
-  }
+  return { payments, totalToday, count: payments.length, cashTotal, onlineTotal, cashCount, onlineCount, loading, refetch: fetch }
 }
 
 // ============================================
-// ALL MEMBERS — for search
+// MONTHLY SUMMARY — agent's own collection this month
 // ============================================
-export function useAllMembers() {
-  const [members, setMembers] = useState<Member[]>([])
+export function useMonthlyAgentSummary() {
+  const [data, setData] = useState({ total: 0, count: 0, cashTotal: 0, onlineTotal: 0 })
   const [loading, setLoading] = useState(true)
+  const currentMonth = getCurrentMonth()
 
   useEffect(() => {
-    supabase
-      .from('members')
-      .select('*')
-      .eq('status', 'active')
-      .order('name')
-      .then(({ data, error }) => {
-        if (!error) setMembers(data as Member[])
-        setLoading(false)
-      })
-  }, [])
+    async function run() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
 
-  return { members, loading }
+      const { data, error } = await supabase
+        .from('payments')
+        .select('amount, method')
+        .eq('recorded_by', user.id)
+        .eq('month', currentMonth)
+
+      if (!error && data) {
+        const total = data.reduce((s, p) => s + p.amount, 0)
+        const cashTotal = data.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0)
+        const onlineTotal = data.filter(p => p.method !== 'cash').reduce((s, p) => s + p.amount, 0)
+        setData({ total, count: data.length, cashTotal, onlineTotal })
+      }
+      setLoading(false)
+    }
+    run()
+  }, [currentMonth])
+
+  return { ...data, loading }
 }
 
 // ============================================
-// RECORD PAYMENT — agent inserts a payment
+// HOLDING PERSONS — from settings
+// ============================================
+export function useHoldingPersons() {
+  const [persons, setPersons] = useState<string[]>([])
+
+  useEffect(() => {
+    supabase.from('settings').select('holding_persons').single().then(({ data }) => {
+      if (data?.holding_persons) setPersons(data.holding_persons as string[])
+    })
+  }, [])
+
+  return persons
+}
+
+// ============================================
+// RECORD PAYMENT
 // ============================================
 export async function recordPayment(params: {
   memberId: string
@@ -114,8 +167,14 @@ export async function recordPayment(params: {
   method: 'cash' | 'online' | 'bank'
   recordedBy: string
   notes?: string
+  holdingPerson?: string   // cash handed to whom
 }): Promise<boolean> {
   try {
+    const noteText = [
+      params.notes,
+      params.holdingPerson ? `Cash held by: ${params.holdingPerson}` : null
+    ].filter(Boolean).join(' | ')
+
     const { error } = await supabase.from('payments').insert({
       member_id: params.memberId,
       month: params.month,
@@ -124,7 +183,7 @@ export async function recordPayment(params: {
       payment_type: 'monthly',
       payment_date: new Date().toISOString().split('T')[0],
       recorded_by: params.recordedBy,
-      notes: params.notes || null,
+      notes: noteText || null,
     })
 
     if (error) {
@@ -141,7 +200,7 @@ export async function recordPayment(params: {
 }
 
 // ============================================
-// RECORD RENTAL INCOME — agent inserts rental
+// RECORD RENTAL INCOME
 // ============================================
 export async function recordRental(params: {
   payerName: string
@@ -161,7 +220,6 @@ export async function recordRental(params: {
       notes: params.notes || null,
       recorded_by: params.recordedBy,
     })
-
     if (error) { toast.error(error.message); return false }
     toast.success('Rental income recorded ✓')
     return true
