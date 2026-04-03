@@ -91,15 +91,13 @@ export function PaymentSheet({
             recordedBy: user.id,
             notes,
             holdingPerson: holdingPerson || undefined,
-            // Pass member for smart due allocation — if has dues, oldest months filled first
-            member: hasDues
-                ? {
-                      opening_balance: member.opening_balance,
-                      advance_balance: member.advance_balance,
-                      monthly_amount: member.monthly_amount,
-                      due_from_month: member.due_from_month,
-                  }
-                : undefined,
+            // Always pass member — used for due allocation AND advance balance tracking
+            member: {
+                opening_balance: member.opening_balance,
+                advance_balance: member.advance_balance,
+                monthly_amount: member.monthly_amount,
+                due_from_month: member.due_from_month,
+            },
         });
         setSaving(false);
         if (ok) {
@@ -309,6 +307,26 @@ export function PaymentSheet({
                                     />
                                 </div>
                             </div>
+
+                            {/* Advance preview — shown when paying more than monthly amount */}
+                            {!hasDues &&
+                                member &&
+                                parseFloat(amount) > member.monthly_amount && (
+                                    <div className='bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-xs'>
+                                        <p className='font-semibold text-green-800'>
+                                            ₹
+                                            {(
+                                                parseFloat(amount) -
+                                                member.monthly_amount
+                                            ).toFixed(0)}{' '}
+                                            will be saved as advance credit
+                                        </p>
+                                        <p className='text-green-600 mt-0.5'>
+                                            Applied automatically to next
+                                            month's payment
+                                        </p>
+                                    </div>
+                                )}
 
                             {/* Method */}
                             <div>

@@ -300,6 +300,34 @@ export async function recordPayment(params: {
       else toast.error(error.message)
       return false
     }
+
+    // If paid more than monthly amount, save excess as advance_balance
+    if (params.member) {
+      const excess = params.amount - params.member.monthly_amount
+      if (excess > 0) {
+        // Fetch latest advance_balance directly — avoid stale value from UI state
+        const { data: fresh } = await supabase
+          .from('members')
+          .select('advance_balance')
+          .eq('id', params.memberId)
+          .single()
+
+        const currentAdvance = fresh?.advance_balance || 0
+        const { error: advErr } = await supabase
+          .from('members')
+          .update({ advance_balance: currentAdvance + excess })
+          .eq('id', params.memberId)
+
+        if (advErr) {
+          console.error('[recordPayment] advance update failed:', advErr.message)
+          toast.success(`Payment recorded ✓ (advance save failed: ${advErr.message})`)
+        } else {
+          toast.success(`Payment recorded ✓ — ₹${excess} saved as advance`)
+        }
+        return true
+      }
+    }
+
     toast.success('Payment recorded ✓')
     return true
   } catch (e: any) {
