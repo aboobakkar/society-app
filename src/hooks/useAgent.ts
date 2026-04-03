@@ -159,32 +159,140 @@ export function useHoldingPersons() {
 }
 
 // ============================================
-// RECORD PAYMENT
+// RECORD PAYMENT — with smart due allocation
 // ============================================
+
+// Helper: get next month string
+function nextMonth(ym: string): string {
+  const [y, m] = ym.split('-').map(Number)
+  if (m === 12) return `${y + 1}-01`
+  return `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
+// Helper: get all unpaid due months for a member in order oldest→newest
+async function getUnpaidDueMonths(memberId: string, dueFromMonth: string): Promise<string[]> {
+  const current = new Date().toISOString().slice(0, 7) // YYYY-MM
+
+  // Get all monthly payments already recorded for this member
+  const { data } = await supabase
+    .from('payments')
+    .select('month')
+    .eq('member_id', memberId)
+    .eq('payment_type', 'monthly')
+
+  const paidMonths = new Set((data || []).map((p: { month: string }) => p.month))
+
+  // Walk from due_from_month to current month, collect unpaid ones
+  const unpaid: string[] = []
+  let cursor = dueFromMonth
+  while (cursor <= current) {
+    if (!paidMonths.has(cursor)) unpaid.push(cursor)
+    cursor = nextMonth(cursor)
+  }
+  return unpaid // ordered oldest first
+}
+
 export async function recordPayment(params: {
   memberId: string
-  month: string
+  month: string           // used only if member has NO dues
   amount: number
   method: 'cash' | 'online' | 'bank'
   recordedBy: string
   notes?: string
-  holdingPerson?: string   // cash handed to whom
+  holdingPerson?: string
+  member?: {              // pass member object for smart due allocation
+    opening_balance: number
+    advance_balance: number
+    monthly_amount: number
+    due_from_month: string | null
+  }
 }): Promise<boolean> {
   try {
+    const today = new Date().toISOString().split('T')[0]
     const noteText = [
       params.notes,
       params.holdingPerson ? `Cash held by: ${params.holdingPerson}` : null
-    ].filter(Boolean).join(' | ')
+    ].filter(Boolean).join(' | ') || null
 
+    const hasDues = !!(params.member?.due_from_month && (params.member?.opening_balance || 0) > 0)
+
+    // ── CASE 1: Member has dues → allocate to oldest unpaid months ──────────
+    if (hasDues && params.member) {
+      const unpaidMonths = await getUnpaidDueMonths(params.memberId, params.member.due_from_month!)
+      const monthlyRate = params.member.monthly_amount
+      let remaining = params.amount
+
+      // Build payment rows: fill oldest months first
+      const rows = []
+      for (const m of unpaidMonths) {
+        if (remaining <= 0) break
+        const pay = Math.min(remaining, monthlyRate)
+        rows.push({
+          member_id: params.memberId,
+          month: m,
+          amount: pay,
+          method: params.method,
+          payment_type: 'monthly',
+          payment_date: today,
+          recorded_by: params.recordedBy,
+          notes: noteText,
+        })
+        remaining -= pay
+      }
+
+      // Also allocate any leftover to current month if dues are fully cleared
+      if (remaining > 0) {
+        const current = new Date().toISOString().slice(0, 7)
+        rows.push({
+          member_id: params.memberId,
+          month: current,
+          amount: remaining,
+          method: params.method,
+          payment_type: 'monthly',
+          payment_date: today,
+          recorded_by: params.recordedBy,
+          notes: noteText,
+        })
+      }
+
+      if (rows.length === 0) {
+        toast.error('No unpaid months found to allocate payment')
+        return false
+      }
+
+      const { error } = await supabase.from('payments').insert(rows)
+      if (error) {
+        if (error.code === '23505') toast.error('One or more months already have a payment recorded')
+        else toast.error(error.message)
+        return false
+      }
+
+      // Update opening_balance on member
+      const newBalance = Math.max(0, (params.member.opening_balance || 0) - params.amount)
+      const advanceGained = params.amount > (params.member.opening_balance || 0)
+        ? params.amount - (params.member.opening_balance || 0)
+        : 0
+      await supabase.from('members').update({
+        opening_balance: newBalance,
+        due_from_month: newBalance > 0 ? params.member.due_from_month : null,
+        advance_balance: (params.member.advance_balance || 0) + advanceGained,
+      }).eq('id', params.memberId)
+
+      const monthsCount = rows.length
+      toast.success(`${monthsCount} month${monthsCount > 1 ? 's' : ''} payment recorded ✓`)
+      return true
+    }
+
+    // ── CASE 2: No dues → single payment for the given month ────────────────
     const { error } = await supabase.from('payments').insert({
       member_id: params.memberId,
       month: params.month,
       amount: params.amount,
       method: params.method,
       payment_type: 'monthly',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: today,
       recorded_by: params.recordedBy,
-      notes: noteText || null,
+      notes: noteText,
     })
 
     if (error) {
