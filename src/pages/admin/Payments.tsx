@@ -336,7 +336,7 @@ export default function PaymentsPage() {
                 !showDueMonthSelector
             ) {
                 // ── Single month payment (non-due or imam_food) ──────────────
-                const singleNoteText = [
+                const singleNote = [
                     form.notes,
                     holdingPerson ? `Cash held by: ${holdingPerson}` : null,
                 ]
@@ -344,7 +344,7 @@ export default function PaymentsPage() {
                     .join(' | ');
                 const result = await addPayment({
                     ...form,
-                    notes: singleNoteText || undefined,
+                    notes: singleNote || undefined,
                     recorded_by: profile?.id,
                 });
                 success = !!result;
@@ -406,6 +406,7 @@ export default function PaymentsPage() {
     // ── Save button disabled condition ────────────────────────────────────────
     const canSave = (() => {
         if (!form.member_id || loadingMemberPayments || saving) return false;
+        if (holdingPersons.length > 0 && !holdingPerson) return false;
         if (showDueMonthSelector)
             return selectedDueMonths.length > 0 && paidAmount > 0;
         return paidAmount > 0;
@@ -888,12 +889,25 @@ export default function PaymentsPage() {
                         onChange={(e) => f('notes', e.target.value)}
                     />
 
-                    <HoldingPersonPicker
-                        persons={holdingPersons}
-                        value={holdingPerson}
-                        onChange={setHoldingPerson}
-                        label='Received By (optional)'
-                    />
+                    {holdingPersons.length > 0 && (
+                        <div>
+                            <label className='block text-xs font-medium text-stone-600 mb-2'>
+                                Received By{' '}
+                                <span className='text-red-500'>*</span>
+                            </label>
+                            <HoldingPersonPicker
+                                persons={holdingPersons}
+                                value={holdingPerson}
+                                onChange={setHoldingPerson}
+                                label=''
+                            />
+                            {!holdingPerson && (
+                                <p className='text-xs text-red-400 mt-1'>
+                                    Please select who received this payment
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Payment impact preview ── */}
                     {form.member_id &&
