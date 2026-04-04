@@ -8,7 +8,8 @@ import {
 } from '@/lib/utils';
 import { recordPayment, useHoldingPersons } from '@/hooks/useAgent';
 import { useAuth } from '@/hooks/useAuth';
-import { CheckCircle, X, ChevronDown, Edit2, ChevronRight } from 'lucide-react';
+import { CheckCircle, X, ChevronDown, Edit2 } from 'lucide-react';
+import { HoldingPersonPicker } from '@/components/HoldingPersonPicker';
 
 interface PaymentSheetProps {
     member: Member | null;
@@ -352,52 +353,12 @@ export function PaymentSheet({
                                 </div>
                             </div>
 
-                            {/* Cash Holding Person — only show for cash payments */}
-                            {method === 'cash' && holdingPersons.length > 0 && (
-                                <div>
-                                    <label className='block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2'>
-                                        Cash Handed To (optional)
-                                    </label>
-                                    <div className='space-y-1.5'>
-                                        {holdingPersons.map((person) => (
-                                            <button
-                                                key={person}
-                                                onClick={() =>
-                                                    setHoldingPerson(
-                                                        holdingPerson === person
-                                                            ? ''
-                                                            : person,
-                                                    )
-                                                }
-                                                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-medium border transition-all
-                          ${
-                              holdingPerson === person
-                                  ? 'bg-amber-50 border-amber-300 text-amber-800'
-                                  : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100'
-                          }`}
-                                            >
-                                                <span>{person}</span>
-                                                {holdingPerson === person && (
-                                                    <CheckCircle
-                                                        size={16}
-                                                        className='text-amber-600'
-                                                    />
-                                                )}
-                                            </button>
-                                        ))}
-                                        {holdingPerson && (
-                                            <button
-                                                onClick={() =>
-                                                    setHoldingPerson('')
-                                                }
-                                                className='text-xs text-stone-400 hover:text-stone-600 px-2'
-                                            >
-                                                Clear selection
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
+                            {/* Holding Person — all payment methods */}
+                            <HoldingPersonPicker
+                                persons={holdingPersons}
+                                value={holdingPerson}
+                                onChange={setHoldingPerson}
+                            />
 
                             {/* Notes */}
                             <div>
