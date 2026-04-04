@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useTodaySummary, useMonthlyAgentSummary } from '@/hooks/useAgent';
+import {
+    useTodaySummary,
+    useMonthlyAgentSummary,
+    useAllAgentsMonthly,
+    useMonthlyRentalSummary,
+} from '@/hooks/useAgent';
 import { Member } from '@/types';
 import { formatCurrency, formatMonth, getCurrentMonth } from '@/lib/utils';
 import { PaymentSheet } from '../components/PaymentSheet';
@@ -13,6 +18,8 @@ import {
     Smartphone,
     Wrench,
     Calendar,
+    Users,
+    UtensilsCrossed,
 } from 'lucide-react';
 
 interface TodayRental {
@@ -37,6 +44,8 @@ export function HomeTab() {
     } = useTodaySummary();
 
     const monthly = useMonthlyAgentSummary();
+    const allAgents = useAllAgentsMonthly();
+    const rentalSummary = useMonthlyRentalSummary();
 
     const [sheetMember, setSheetMember] = useState<Member | null>(null);
     const [sheetMonth, setSheetMonth] = useState<string | undefined>();
@@ -68,52 +77,113 @@ export function HomeTab() {
     return (
         <div className='flex-1 overflow-y-auto pb-36'>
             <div className='p-4 space-y-4'>
-                {/* ── Monthly Summary — this agent only ── */}
-                <div className='bg-white border border-stone-200 rounded-2xl p-4'>
-                    <div className='flex items-center justify-between mb-3'>
+                {/* ── Month Overview Card ── */}
+                <div className='bg-white border border-stone-200 rounded-2xl overflow-hidden'>
+                    {/* Header */}
+                    <div className='px-4 pt-4 pb-3 flex items-center justify-between'>
                         <div className='flex items-center gap-2'>
                             <Calendar size={14} className='text-stone-400' />
                             <span className='text-xs font-semibold text-stone-500 uppercase tracking-wide'>
                                 {formatMonth(getCurrentMonth(), 'en')}
                             </span>
                         </div>
-                        <span className='text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-medium'>
-                            My Collections Only
-                        </span>
                     </div>
-                    <div className='grid grid-cols-3 gap-2'>
-                        <div className='text-center'>
-                            <p className='text-lg font-bold text-stone-900'>
+
+                    {/* Society totals — 3 income types */}
+                    <div className='px-4 pb-3'>
+                        <p className='text-xs text-stone-400 mb-2'>
+                            Society income this month
+                        </p>
+                        <div className='grid grid-cols-3 gap-2'>
+                            <div className='bg-stone-50 rounded-xl p-2.5 text-center'>
+                                <p className='text-sm font-bold text-stone-900'>
+                                    {allAgents.loading
+                                        ? '–'
+                                        : formatCurrency(
+                                              allAgents.monthlyTotal,
+                                          )}
+                                </p>
+                                <p className='text-xs text-stone-400 mt-0.5'>
+                                    Monthly
+                                </p>
+                            </div>
+                            <div className='bg-purple-50 rounded-xl p-2.5 text-center'>
+                                <p className='text-sm font-bold text-purple-700'>
+                                    {allAgents.loading
+                                        ? '–'
+                                        : formatCurrency(
+                                              allAgents.imamFoodTotal,
+                                          )}
+                                </p>
+                                <p className='text-xs text-stone-400 mt-0.5'>
+                                    Imam Food
+                                </p>
+                            </div>
+                            <div className='bg-teal-50 rounded-xl p-2.5 text-center'>
+                                <p className='text-sm font-bold text-teal-700'>
+                                    {rentalSummary.loading
+                                        ? '–'
+                                        : formatCurrency(rentalSummary.total)}
+                                </p>
+                                <p className='text-xs text-stone-400 mt-0.5'>
+                                    Rental
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className='border-t border-stone-100 mx-4' />
+
+                    {/* My collections row */}
+                    <div className='px-4 py-3'>
+                        <div className='flex items-center justify-between mb-2'>
+                            <p className='text-xs text-stone-400'>
+                                My collections
+                            </p>
+                            <span className='text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-medium'>
                                 {monthly.loading
                                     ? '–'
                                     : formatCurrency(monthly.total)}
-                            </p>
-                            <p className='text-xs text-stone-400'>My Total</p>
+                            </span>
                         </div>
-                        <div className='text-center border-x border-stone-100'>
-                            <p className='text-lg font-bold text-amber-700'>
-                                {monthly.loading
-                                    ? '–'
-                                    : formatCurrency(monthly.cashTotal)}
-                            </p>
-                            <p className='text-xs text-stone-400'>Cash</p>
-                        </div>
-                        <div className='text-center'>
-                            <p className='text-lg font-bold text-blue-700'>
-                                {monthly.loading
-                                    ? '–'
-                                    : formatCurrency(monthly.onlineTotal)}
-                            </p>
-                            <p className='text-xs text-stone-400'>Online</p>
+                        <div className='flex gap-3'>
+                            <div className='flex items-center gap-1.5'>
+                                <Banknote
+                                    size={13}
+                                    className='text-amber-600'
+                                />
+                                <span className='text-xs text-stone-600 font-medium'>
+                                    {monthly.loading
+                                        ? '–'
+                                        : formatCurrency(monthly.cashTotal)}
+                                </span>
+                                <span className='text-xs text-stone-400'>
+                                    cash
+                                </span>
+                            </div>
+                            <div className='flex items-center gap-1.5'>
+                                <Smartphone
+                                    size={13}
+                                    className='text-blue-600'
+                                />
+                                <span className='text-xs text-stone-600 font-medium'>
+                                    {monthly.loading
+                                        ? '–'
+                                        : formatCurrency(monthly.onlineTotal)}
+                                </span>
+                                <span className='text-xs text-stone-400'>
+                                    online
+                                </span>
+                            </div>
+                            {!monthly.loading && (
+                                <span className='text-xs text-stone-300 ml-auto'>
+                                    {monthly.count} payment
+                                    {monthly.count !== 1 ? 's' : ''}
+                                </span>
+                            )}
                         </div>
                     </div>
-                    {!monthly.loading && (
-                        <p className='text-xs text-stone-400 text-center mt-2'>
-                            {monthly.count} payment
-                            {monthly.count !== 1 ? 's' : ''} recorded by me this
-                            month
-                        </p>
-                    )}
                 </div>
 
                 {/* ── Today's Collection Card ── */}

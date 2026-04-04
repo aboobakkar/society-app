@@ -4,9 +4,9 @@ import toast from 'react-hot-toast'
 
 export interface HoldingBalance {
   person: string
-  collected: number       // cash payments with "Cash held by: NAME" in notes
-  transferredOut: number  // transfers where this person is from_person
-  transferredIn: number   // transfers where this person is to_person
+  collected: number       // total received from payments + rental_income
+  transferredOut: number
+  transferredIn: number
   amount: number          // net = collected - out + in
 }
 
@@ -20,14 +20,13 @@ export interface CashTransfer {
   created_at: string
 }
 
-// Extract "Cash held by: NAME" from payment notes
+// Extract "Cash held by: NAME" from notes field
 function extractHoldingPerson(notes: string | null): string | null {
   if (!notes) return null
   const match = notes.match(/Cash held by:\s*([^|]+?)(\s*\|.*)?$/)
   return match ? match[1].trim() : null
 }
 
-// Last day of a given YYYY-MM month
 function monthEnd(month: string): string {
   const [y, m] = month.split('-')
   const last = new Date(parseInt(y), parseInt(m), 0).getDate()
@@ -36,6 +35,10 @@ function monthEnd(month: string): string {
 
 // ============================================
 // HOLDING SUMMARY
+// Aggregates from:
+//   1. payments table (monthly + imam_food, any method)
+//   2. rental_income table (any method)
+//   3. cash_transfers table
 // ============================================
 export function useHoldingSummary(month: string) {
   const [balances, setBalances] = useState<HoldingBalance[]>([])
@@ -48,13 +51,26 @@ export function useHoldingSummary(month: string) {
     const start = `${month}-01`
     const end = monthEnd(month)
 
-    const [{ data: payments }, { data: transferData }] = await Promise.all([
-      // All cash payments this month
+    const [
+      { data: payments },
+      { data: rentals },
+      { data: transferData },
+    ] = await Promise.all([
+      // All payments this month that have a holding person — any method, any type
       supabase
         .from('payments')
         .select('amount, notes')
         .eq('month', month)
-        .eq('method', 'cash'),
+        .like('notes', '%Cash held by:%'),
+
+      // All rental income this month that have a holding person
+      supabase
+        .from('rental_income')
+        .select('amount, notes')
+        .gte('income_date', start)
+        .lte('income_date', end)
+        .like('notes', '%Cash held by:%'),
+
       // All transfers this month
       supabase
         .from('cash_transfers')
@@ -64,14 +80,20 @@ export function useHoldingSummary(month: string) {
         .order('created_at', { ascending: false }),
     ])
 
-    // Build collected amounts per person from payment notes
+    // Build collected amounts per person from both sources
     const collected: Record<string, number> = {}
+
     for (const p of payments || []) {
       const person = extractHoldingPerson(p.notes)
       if (person) collected[person] = (collected[person] || 0) + p.amount
     }
 
-    // Build transfer amounts per person
+    for (const r of rentals || []) {
+      const person = extractHoldingPerson(r.notes)
+      if (person) collected[person] = (collected[person] || 0) + r.amount
+    }
+
+    // Build transfer maps
     const out: Record<string, number> = {}
     const inn: Record<string, number> = {}
     for (const t of transferData || []) {
@@ -90,7 +112,13 @@ export function useHoldingSummary(month: string) {
       const c = collected[person] || 0
       const o = out[person] || 0
       const i = inn[person] || 0
-      return { person, collected: c, transferredOut: o, transferredIn: i, amount: c - o + i }
+      return {
+        person,
+        collected: c,
+        transferredOut: o,
+        transferredIn: i,
+        amount: c - o + i,
+      }
     }).sort((a, b) => b.amount - a.amount)
 
     setBalances(result)
