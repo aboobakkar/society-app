@@ -54,6 +54,7 @@ export default function RentalIncomePage() {
 
     const handleSave = async () => {
         if (!form.payer_name.trim() || !form.amount) return;
+        if (holdingPersons.length > 0 && !form.holding_person) return;
         setSaving(true);
         try {
             const noteText = [
@@ -278,12 +279,25 @@ export default function RentalIncomePage() {
                         </div>
                     </div>
 
-                    <HoldingPersonPicker
-                        persons={holdingPersons}
-                        value={form.holding_person || ''}
-                        onChange={(v) => f('holding_person', v)}
-                        label='Received By (optional)'
-                    />
+                    {holdingPersons.length > 0 && (
+                        <div>
+                            <label className='block text-xs font-medium text-stone-600 mb-2'>
+                                Received By{' '}
+                                <span className='text-red-500'>*</span>
+                            </label>
+                            <HoldingPersonPicker
+                                persons={holdingPersons}
+                                value={form.holding_person || ''}
+                                onChange={(v) => f('holding_person', v)}
+                                label=''
+                            />
+                            {!form.holding_person && (
+                                <p className='text-xs text-red-400 mt-1'>
+                                    Please select who received this payment
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div className='flex gap-2 pt-1'>
                         <Button

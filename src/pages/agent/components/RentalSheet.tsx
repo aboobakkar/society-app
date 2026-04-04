@@ -217,12 +217,26 @@ export function RentalSheet({ open, onClose, onSuccess }: RentalSheetProps) {
                         />
                     </div>
 
-                    {/* Holding person */}
-                    <HoldingPersonPicker
-                        persons={holdingPersons}
-                        value={holdingPerson}
-                        onChange={setHoldingPerson}
-                    />
+                    {/* Received By — mandatory */}
+                    {holdingPersons.length > 0 && (
+                        <div>
+                            <label className='block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2'>
+                                Received By{' '}
+                                <span className='text-red-500'>*</span>
+                            </label>
+                            <HoldingPersonPicker
+                                persons={holdingPersons}
+                                value={holdingPerson}
+                                onChange={setHoldingPerson}
+                                label=''
+                            />
+                            {!holdingPerson && (
+                                <p className='text-xs text-red-500 mt-1'>
+                                    Please select who received this payment
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Save */}
                     <button
@@ -231,7 +245,8 @@ export function RentalSheet({ open, onClose, onSuccess }: RentalSheetProps) {
                             saving ||
                             !payerName.trim() ||
                             !amount ||
-                            parseFloat(amount) <= 0
+                            parseFloat(amount) <= 0 ||
+                            (holdingPersons.length > 0 && !holdingPerson)
                         }
                         className='w-full py-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2 text-base active:scale-[0.98]'
                     >

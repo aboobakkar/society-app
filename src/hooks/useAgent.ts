@@ -197,6 +197,7 @@ export async function recordPayment(params: {
   month: string           // used only if member has NO dues
   amount: number
   method: 'cash' | 'online' | 'bank'
+  paymentType?: 'monthly' | 'imam_food'
   recordedBy: string
   notes?: string
   holdingPerson?: string
@@ -214,7 +215,8 @@ export async function recordPayment(params: {
       params.holdingPerson ? `Cash held by: ${params.holdingPerson}` : null
     ].filter(Boolean).join(' | ') || null
 
-    const hasDues = !!(params.member?.due_from_month && (params.member?.opening_balance || 0) > 0)
+    const pType = params.paymentType || 'monthly'
+    const hasDues = pType === 'monthly' && !!(params.member?.due_from_month && (params.member?.opening_balance || 0) > 0)
 
     // ── CASE 1: Member has dues → allocate to oldest unpaid months ──────────
     if (hasDues && params.member) {
@@ -232,7 +234,7 @@ export async function recordPayment(params: {
           month: m,
           amount: pay,
           method: params.method,
-          payment_type: 'monthly',
+          payment_type: pType,
           payment_date: today,
           recorded_by: params.recordedBy,
           notes: noteText,
@@ -248,7 +250,7 @@ export async function recordPayment(params: {
           month: current,
           amount: remaining,
           method: params.method,
-          payment_type: 'monthly',
+          payment_type: pType,
           payment_date: today,
           recorded_by: params.recordedBy,
           notes: noteText,
@@ -301,8 +303,8 @@ export async function recordPayment(params: {
       return false
     }
 
-    // If paid more than monthly amount, save excess as advance_balance
-    if (params.member) {
+    // If paid more than monthly amount, save excess as advance_balance (monthly only)
+    if (params.member && pType === 'monthly') {
       const excess = params.amount - params.member.monthly_amount
       if (excess > 0) {
         // Fetch latest advance_balance directly — avoid stale value from UI state
@@ -353,14 +355,13 @@ export async function recordRental(params: {
       params.notes,
       params.holdingPerson ? `Cash held by: ${params.holdingPerson}` : null,
     ].filter(Boolean).join(' | ') || null
-
     const { error } = await supabase.from('rental_income').insert({
       payer_name: params.payerName,
       payer_mobile: params.payerMobile || null,
       amount: params.amount,
       income_date: new Date().toISOString().split('T')[0],
       description: params.description || null,
-      notes: noteText,
+      notes: params.notes || null,
       recorded_by: params.recordedBy,
     })
     if (error) { toast.error(error.message); return false }

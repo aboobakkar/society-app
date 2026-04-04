@@ -48,10 +48,15 @@ export function PaymentSheet({
     const [editing, setEditing] = useState(false); // start in read-only if existingPayment
     const [month, setMonth] = useState(defaultMonth || getCurrentMonth());
     const hasDues = !!(
-        member?.due_from_month && (member?.opening_balance || 0) > 0
+        member?.due_from_month &&
+        (member?.opening_balance || 0) > 0 &&
+        paymentType === 'monthly'
     );
     const [amount, setAmount] = useState('');
     const [method, setMethod] = useState<Method>('cash');
+    const [paymentType, setPaymentType] = useState<'monthly' | 'imam_food'>(
+        'monthly',
+    );
     const [notes, setNotes] = useState('');
     const [holdingPerson, setHoldingPerson] = useState('');
     const [saving, setSaving] = useState(false);
@@ -89,6 +94,7 @@ export function PaymentSheet({
             month,
             amount: amt,
             method,
+            paymentType,
             recordedBy: user.id,
             notes,
             holdingPerson: holdingPerson || undefined,
@@ -110,6 +116,7 @@ export function PaymentSheet({
     const handleClose = () => {
         setNotes('');
         setHoldingPerson('');
+        setPaymentType('monthly');
         setShowMonths(false);
         setEditing(false);
         onClose();
@@ -226,6 +233,43 @@ export function PaymentSheet({
                     ) : (
                         /* EDIT / NEW ENTRY form */
                         <>
+                            {/* Payment Type */}
+                            <div>
+                                <label className='block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2'>
+                                    Payment Type
+                                </label>
+                                <div className='grid grid-cols-2 gap-2'>
+                                    {(
+                                        [
+                                            {
+                                                value: 'monthly',
+                                                label: '🗓 Monthly Subscription',
+                                            },
+                                            {
+                                                value: 'imam_food',
+                                                label: '🍽 Imam Food Allowance',
+                                            },
+                                        ] as const
+                                    ).map((opt) => (
+                                        <button
+                                            key={opt.value}
+                                            onClick={() => {
+                                                setPaymentType(opt.value);
+                                                setHoldingPerson('');
+                                            }}
+                                            className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all text-center border
+                                                ${
+                                                    paymentType === opt.value
+                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                        : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
                             {/* Month Picker */}
                             <div>
                                 <label className='block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2'>
@@ -353,12 +397,27 @@ export function PaymentSheet({
                                 </div>
                             </div>
 
-                            {/* Holding Person — all payment methods */}
-                            <HoldingPersonPicker
-                                persons={holdingPersons}
-                                value={holdingPerson}
-                                onChange={setHoldingPerson}
-                            />
+                            {/* Holding Person — mandatory */}
+                            {holdingPersons.length > 0 && (
+                                <div>
+                                    <label className='block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2'>
+                                        Received By{' '}
+                                        <span className='text-red-500'>*</span>
+                                    </label>
+                                    <HoldingPersonPicker
+                                        persons={holdingPersons}
+                                        value={holdingPerson}
+                                        onChange={setHoldingPerson}
+                                        label=''
+                                    />
+                                    {!holdingPerson && (
+                                        <p className='text-xs text-red-500 mt-1'>
+                                            Please select who received this
+                                            payment
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Notes */}
                             <div>
@@ -378,7 +437,11 @@ export function PaymentSheet({
                             <button
                                 onClick={handleSave}
                                 disabled={
-                                    saving || !amount || parseFloat(amount) <= 0
+                                    saving ||
+                                    !amount ||
+                                    parseFloat(amount) <= 0 ||
+                                    (holdingPersons.length > 0 &&
+                                        !holdingPerson)
                                 }
                                 className='w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-2xl flex items-center justify-center gap-2 text-base active:scale-[0.98]'
                             >
