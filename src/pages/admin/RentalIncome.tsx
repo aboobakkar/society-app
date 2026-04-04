@@ -65,6 +65,7 @@ export default function RentalIncomePage() {
             ]
                 .filter(Boolean)
                 .join(' | ');
+
             const result = await addRental({
                 ...form,
                 notes: noteText || undefined,

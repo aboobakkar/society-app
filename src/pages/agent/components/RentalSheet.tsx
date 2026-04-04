@@ -59,6 +59,7 @@ export function RentalSheet({ open, onClose, onSuccess }: RentalSheetProps) {
 
     const handleSave = async () => {
         if (!payerName.trim() || !amount || parseFloat(amount) <= 0) return;
+        if (holdingPersons.length > 0 && !holdingPerson) return;
         if (!user) return;
         setSaving(true);
         const ok = await recordRental({
