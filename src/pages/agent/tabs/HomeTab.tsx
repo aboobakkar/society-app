@@ -77,158 +77,113 @@ export function HomeTab() {
     return (
         <div className='flex-1 overflow-y-auto pb-36'>
             <div className='p-4 space-y-4'>
-                {/* ── Monthly Summary — this agent only ── */}
-                <div className='bg-white border border-stone-200 rounded-2xl p-4'>
-                    <div className='flex items-center justify-between mb-3'>
+                {/* ── Month Overview Card ── */}
+                <div className='bg-white border border-stone-200 rounded-2xl overflow-hidden'>
+                    {/* Header */}
+                    <div className='px-4 pt-4 pb-3 flex items-center justify-between'>
                         <div className='flex items-center gap-2'>
                             <Calendar size={14} className='text-stone-400' />
                             <span className='text-xs font-semibold text-stone-500 uppercase tracking-wide'>
                                 {formatMonth(getCurrentMonth(), 'en')}
                             </span>
                         </div>
-                        <span className='text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-medium'>
-                            My Collections Only
-                        </span>
                     </div>
-                    <div className='grid grid-cols-3 gap-2'>
-                        <div className='text-center'>
-                            <p className='text-lg font-bold text-stone-900'>
-                                {monthly.loading
-                                    ? '–'
-                                    : formatCurrency(monthly.total)}
-                            </p>
-                            <p className='text-xs text-stone-400'>My Total</p>
-                        </div>
-                        <div className='text-center border-x border-stone-100'>
-                            <p className='text-lg font-bold text-amber-700'>
-                                {monthly.loading
-                                    ? '–'
-                                    : formatCurrency(monthly.cashTotal)}
-                            </p>
-                            <p className='text-xs text-stone-400'>Cash</p>
-                        </div>
-                        <div className='text-center'>
-                            <p className='text-lg font-bold text-blue-700'>
-                                {monthly.loading
-                                    ? '–'
-                                    : formatCurrency(monthly.onlineTotal)}
-                            </p>
-                            <p className='text-xs text-stone-400'>Online</p>
-                        </div>
-                    </div>
-                    {!monthly.loading && (
-                        <p className='text-xs text-stone-400 text-center mt-2'>
-                            {monthly.count} payment
-                            {monthly.count !== 1 ? 's' : ''} recorded by me this
-                            month
-                        </p>
-                    )}
-                </div>
 
-                {/* ── Society-wide Monthly Cards ── */}
-                <div className='grid grid-cols-1 gap-3'>
-                    {/* All agents monthly */}
-                    <div className='bg-white border border-stone-200 rounded-2xl p-4'>
-                        <div className='flex items-center justify-between mb-3'>
-                            <div className='flex items-center gap-2'>
-                                <Users size={14} className='text-stone-400' />
-                                <span className='text-xs font-semibold text-stone-500 uppercase tracking-wide'>
-                                    {formatMonth(getCurrentMonth(), 'en')} — All
-                                    Collections
-                                </span>
-                            </div>
-                            <span className='text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded-full font-medium'>
-                                Society Total
-                            </span>
-                        </div>
+                    {/* Society totals — 3 income types */}
+                    <div className='px-4 pb-3'>
+                        <p className='text-xs text-stone-400 mb-2'>
+                            Society income this month
+                        </p>
                         <div className='grid grid-cols-3 gap-2'>
-                            <div className='text-center'>
-                                <p className='text-lg font-bold text-stone-900'>
+                            <div className='bg-stone-50 rounded-xl p-2.5 text-center'>
+                                <p className='text-sm font-bold text-stone-900'>
                                     {allAgents.loading
                                         ? '–'
                                         : formatCurrency(
                                               allAgents.monthlyTotal,
                                           )}
                                 </p>
-                                <p className='text-xs text-stone-400'>
+                                <p className='text-xs text-stone-400 mt-0.5'>
                                     Monthly
                                 </p>
                             </div>
-                            <div className='text-center border-x border-stone-100'>
-                                <p className='text-lg font-bold text-purple-700'>
+                            <div className='bg-purple-50 rounded-xl p-2.5 text-center'>
+                                <p className='text-sm font-bold text-purple-700'>
                                     {allAgents.loading
                                         ? '–'
                                         : formatCurrency(
                                               allAgents.imamFoodTotal,
                                           )}
                                 </p>
-                                <p className='text-xs text-stone-400'>
+                                <p className='text-xs text-stone-400 mt-0.5'>
                                     Imam Food
                                 </p>
                             </div>
-                            <div className='text-center'>
-                                <p className='text-lg font-bold text-teal-700'>
+                            <div className='bg-teal-50 rounded-xl p-2.5 text-center'>
+                                <p className='text-sm font-bold text-teal-700'>
                                     {rentalSummary.loading
                                         ? '–'
                                         : formatCurrency(rentalSummary.total)}
                                 </p>
-                                <p className='text-xs text-stone-400'>Rental</p>
+                                <p className='text-xs text-stone-400 mt-0.5'>
+                                    Rental
+                                </p>
                             </div>
                         </div>
-                        {!allAgents.loading && (
-                            <p className='text-xs text-stone-400 text-center mt-2'>
-                                {allAgents.count} total payment
-                                {allAgents.count !== 1 ? 's' : ''} this month
-                            </p>
-                        )}
                     </div>
 
-                    {/* Imam Food separate card */}
-                    {!allAgents.loading && allAgents.imamFoodTotal > 0 && (
-                        <div className='bg-purple-50 border border-purple-100 rounded-2xl p-4 flex items-center gap-3'>
-                            <div className='w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0'>
-                                <UtensilsCrossed
-                                    size={18}
-                                    className='text-purple-600'
-                                />
-                            </div>
-                            <div className='flex-1'>
-                                <p className='text-sm font-semibold text-stone-800'>
-                                    Imam Food Allowance
-                                </p>
-                                <p className='text-xs text-stone-400'>
-                                    {allAgents.imamFoodCount} payment
-                                    {allAgents.imamFoodCount !== 1 ? 's' : ''}{' '}
-                                    this month
-                                </p>
-                            </div>
-                            <p className='text-base font-bold text-purple-700'>
-                                {formatCurrency(allAgents.imamFoodTotal)}
-                            </p>
-                        </div>
-                    )}
+                    {/* Divider */}
+                    <div className='border-t border-stone-100 mx-4' />
 
-                    {/* Rental Income separate card */}
-                    {!rentalSummary.loading && rentalSummary.total > 0 && (
-                        <div className='bg-teal-50 border border-teal-100 rounded-2xl p-4 flex items-center gap-3'>
-                            <div className='w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0'>
-                                <Wrench size={18} className='text-teal-600' />
-                            </div>
-                            <div className='flex-1'>
-                                <p className='text-sm font-semibold text-stone-800'>
-                                    Tools Rental Income
-                                </p>
-                                <p className='text-xs text-stone-400'>
-                                    {rentalSummary.count} record
-                                    {rentalSummary.count !== 1 ? 's' : ''} this
-                                    month
-                                </p>
-                            </div>
-                            <p className='text-base font-bold text-teal-700'>
-                                {formatCurrency(rentalSummary.total)}
+                    {/* My collections row */}
+                    <div className='px-4 py-3'>
+                        <div className='flex items-center justify-between mb-2'>
+                            <p className='text-xs text-stone-400'>
+                                My collections
                             </p>
+                            <span className='text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-medium'>
+                                {monthly.loading
+                                    ? '–'
+                                    : formatCurrency(monthly.total)}
+                            </span>
                         </div>
-                    )}
+                        <div className='flex gap-3'>
+                            <div className='flex items-center gap-1.5'>
+                                <Banknote
+                                    size={13}
+                                    className='text-amber-600'
+                                />
+                                <span className='text-xs text-stone-600 font-medium'>
+                                    {monthly.loading
+                                        ? '–'
+                                        : formatCurrency(monthly.cashTotal)}
+                                </span>
+                                <span className='text-xs text-stone-400'>
+                                    cash
+                                </span>
+                            </div>
+                            <div className='flex items-center gap-1.5'>
+                                <Smartphone
+                                    size={13}
+                                    className='text-blue-600'
+                                />
+                                <span className='text-xs text-stone-600 font-medium'>
+                                    {monthly.loading
+                                        ? '–'
+                                        : formatCurrency(monthly.onlineTotal)}
+                                </span>
+                                <span className='text-xs text-stone-400'>
+                                    online
+                                </span>
+                            </div>
+                            {!monthly.loading && (
+                                <span className='text-xs text-stone-300 ml-auto'>
+                                    {monthly.count} payment
+                                    {monthly.count !== 1 ? 's' : ''}
+                                </span>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* ── Today's Collection Card ── */}

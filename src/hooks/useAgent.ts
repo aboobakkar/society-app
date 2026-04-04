@@ -291,7 +291,7 @@ export async function recordPayment(params: {
       month: params.month,
       amount: params.amount,
       method: params.method,
-      payment_type: 'monthly',
+      payment_type: pType,
       payment_date: today,
       recorded_by: params.recordedBy,
       notes: noteText,
