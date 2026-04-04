@@ -1,5 +1,7 @@
 import { useMembers, usePayments, useExpenses } from '@/hooks/useData';
 import { useRentalIncome } from '@/hooks/useFeatures';
+import { useHoldingSummary } from '@/hooks/useHolding';
+import { useNavigate } from 'react-router-dom';
 import { useLang } from '@/hooks/useLang';
 import { StatCard, Card, Badge } from '@/components/ui';
 import {
@@ -30,13 +32,26 @@ export default function AdminDashboard() {
     const { payments, loading: pLoading } = usePayments(currentMonth);
     const { expenses, loading: eLoading } = useExpenses(currentMonth);
     const { totalRental, loading: rLoading } = useRentalIncome(currentMonth);
+    const {
+        balances: holdingBalances,
+        totalHeld,
+        loading: hLoading,
+    } = useHoldingSummary(currentMonth);
+    const navigate = useNavigate();
 
     // Never block the full page — render with whatever data is available
     const activeMembers = members.filter((m) => m.status === 'active');
-    const monthlyPayments = payments.filter((p) => (p.payment_type ?? 'monthly') === 'monthly');
-    const imamFoodPayments = payments.filter((p) => p.payment_type === 'imam_food');
+    const monthlyPayments = payments.filter(
+        (p) => (p.payment_type ?? 'monthly') === 'monthly',
+    );
+    const imamFoodPayments = payments.filter(
+        (p) => p.payment_type === 'imam_food',
+    );
     const totalCollected = monthlyPayments.reduce((s, p) => s + p.amount, 0);
-    const imamFoodCollected = imamFoodPayments.reduce((s, p) => s + p.amount, 0);
+    const imamFoodCollected = imamFoodPayments.reduce(
+        (s, p) => s + p.amount,
+        0,
+    );
     const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
     const balance = totalCollected - totalExpenses;
     const paidMemberIds = new Set(monthlyPayments.map((p) => p.member_id));
@@ -50,7 +65,8 @@ export default function AdminDashboard() {
             ? Math.round((totalCollected / expectedTotal) * 100)
             : 0;
 
-    const dataLoading = mLoading || pLoading || eLoading || rLoading;
+    const dataLoading =
+        mLoading || pLoading || eLoading || rLoading || hLoading;
 
     return (
         <div>
@@ -73,7 +89,11 @@ export default function AdminDashboard() {
                 <StatCard
                     label={i18n.collected}
                     value={pLoading ? '...' : formatCurrency(totalCollected)}
-                    sub={pLoading ? '' : `${monthlyPayments.length} ${i18n.payments}`}
+                    sub={
+                        pLoading
+                            ? ''
+                            : `${monthlyPayments.length} ${i18n.payments}`
+                    }
                     valueClass='text-green-700'
                 />
                 <StatCard
@@ -98,14 +118,32 @@ export default function AdminDashboard() {
                 />
                 <StatCard
                     label={i18n.imamFoodAllowance}
-                    value={pLoading ? '...' : imamFoodCollected > 0 ? formatCurrency(imamFoodCollected) : '—'}
-                    sub={pLoading ? '' : imamFoodPayments.length > 0 ? `${imamFoodPayments.length} payments` : 'None this month'}
+                    value={
+                        pLoading
+                            ? '...'
+                            : imamFoodCollected > 0
+                              ? formatCurrency(imamFoodCollected)
+                              : '—'
+                    }
+                    sub={
+                        pLoading
+                            ? ''
+                            : imamFoodPayments.length > 0
+                              ? `${imamFoodPayments.length} payments`
+                              : 'None this month'
+                    }
                     valueClass='text-purple-700'
                 />
                 <StatCard
-                    label="Rental Income"
-                    value={rLoading ? '...' : totalRental > 0 ? formatCurrency(totalRental) : '—'}
-                    sub="tools rental this month"
+                    label='Rental Income'
+                    value={
+                        rLoading
+                            ? '...'
+                            : totalRental > 0
+                              ? formatCurrency(totalRental)
+                              : '—'
+                    }
+                    sub='tools rental this month'
                     valueClass='text-teal-700'
                 />
             </div>
@@ -174,8 +212,11 @@ export default function AdminDashboard() {
                                                     ? member.name_ml ||
                                                       member.name
                                                     : member.name}
-                                                {p.payment_type === 'imam_food' && (
-                                                    <span className='ml-1.5 text-xs bg-purple-50 border border-purple-200 text-purple-700 rounded-full px-1.5 py-0.5'>Imam</span>
+                                                {p.payment_type ===
+                                                    'imam_food' && (
+                                                    <span className='ml-1.5 text-xs bg-purple-50 border border-purple-200 text-purple-700 rounded-full px-1.5 py-0.5'>
+                                                        Imam
+                                                    </span>
                                                 )}
                                             </p>
                                             <p className='text-xs text-stone-400'>
@@ -313,6 +354,50 @@ export default function AdminDashboard() {
                     </>
                 )}
             </Card>
+
+            {/* Cash Holdings Summary */}
+            {!hLoading &&
+                holdingBalances.filter((b) => b.amount > 0).length > 0 && (
+                    <Card
+                        className='mt-4 cursor-pointer hover:border-amber-300 transition-colors'
+                        onClick={() => navigate('/admin/cash-holding')}
+                    >
+                        <div className='flex items-center justify-between mb-3'>
+                            <div className='flex items-center gap-2'>
+                                <span className='text-base'>💵</span>
+                                <h2 className='text-sm font-semibold text-stone-800'>
+                                    Cash Holdings
+                                </h2>
+                            </div>
+                            <span className='text-sm font-bold text-amber-700'>
+                                {formatCurrency(totalHeld)}
+                            </span>
+                        </div>
+                        <div className='flex flex-wrap gap-2'>
+                            {holdingBalances
+                                .filter((b) => b.amount > 0)
+                                .map((b) => (
+                                    <div
+                                        key={b.person}
+                                        className='flex items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5'
+                                    >
+                                        <div className='w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center text-amber-800 font-bold text-xs flex-shrink-0'>
+                                            {b.person[0].toUpperCase()}
+                                        </div>
+                                        <span className='text-xs font-medium text-stone-700'>
+                                            {b.person}
+                                        </span>
+                                        <span className='text-xs font-bold text-amber-700'>
+                                            {formatCurrency(b.amount)}
+                                        </span>
+                                    </div>
+                                ))}
+                        </div>
+                        <p className='text-xs text-stone-400 mt-2'>
+                            Click to manage transfers →
+                        </p>
+                    </Card>
+                )}
         </div>
     );
 }
