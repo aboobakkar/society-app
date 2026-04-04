@@ -169,7 +169,7 @@ export function useExpenses(month?: string) {
     let query = supabase.from('expenses').select('*').order('expense_date', { ascending: false })
     if (month) {
       const [y, m] = month.split('-')
-      query = query.gte('expense_date', `${y}-${m}-01`).lte('expense_date', (() => { const d = new Date(parseInt(y), parseInt(m), 0); return `${y}-${m}-${String(d.getDate()).padStart(2,'0')}` })())
+      query = query.gte('expense_date', `${y}-${m}-01`).lte('expense_date', (() => { const d = new Date(parseInt(y), parseInt(m), 0); return `${y}-${m}-${String(d.getDate()).padStart(2, '0')}` })())
     }
     const { data, error } = await query
     if (error) console.error('[useExpenses]', error.message)
@@ -231,10 +231,10 @@ export function useSettings() {
       const { data: existing } = await supabase.from('settings').select('id').limit(1).single()
       let error
       if (existing) {
-        ;({ error } = await supabase.from('settings').update(updates).eq('id', existing.id))
+        ; ({ error } = await supabase.from('settings').update(updates).eq('id', existing.id))
       } else {
         // No row yet — insert instead
-        ;({ error } = await supabase.from('settings').insert(updates))
+        ; ({ error } = await supabase.from('settings').insert(updates))
       }
       if (error) { toast.error(error.message); return false }
       setSettings(prev => prev ? { ...prev, ...updates } : (updates as Settings))
@@ -283,4 +283,19 @@ export function useMonthlyReport(year: string) {
   }, [year])
 
   return { data, loading }
+}
+
+// ============================================
+// HOLDING PERSONS — from settings (usable by admin pages too)
+// ============================================
+export function useHoldingPersons() {
+  const [persons, setPersons] = useState<string[]>([])
+
+  useEffect(() => {
+    supabase.from('settings').select('holding_persons').single().then(({ data }) => {
+      if (data?.holding_persons) setPersons(data.holding_persons as string[])
+    })
+  }, [])
+
+  return persons
 }

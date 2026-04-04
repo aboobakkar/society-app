@@ -345,16 +345,22 @@ export async function recordRental(params: {
   amount: number
   description?: string
   notes?: string
+  holdingPerson?: string
   recordedBy: string
 }): Promise<boolean> {
   try {
+    const noteText = [
+      params.notes,
+      params.holdingPerson ? `Cash held by: ${params.holdingPerson}` : null,
+    ].filter(Boolean).join(' | ') || null
+
     const { error } = await supabase.from('rental_income').insert({
       payer_name: params.payerName,
       payer_mobile: params.payerMobile || null,
       amount: params.amount,
       income_date: new Date().toISOString().split('T')[0],
       description: params.description || null,
-      notes: params.notes || null,
+      notes: noteText,
       recorded_by: params.recordedBy,
     })
     if (error) { toast.error(error.message); return false }
