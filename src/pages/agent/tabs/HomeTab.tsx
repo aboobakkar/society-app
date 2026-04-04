@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useTodaySummary, useMonthlyAgentSummary } from '@/hooks/useAgent';
+import {
+    useTodaySummary,
+    useMonthlyAgentSummary,
+    useAllAgentsMonthly,
+    useMonthlyRentalSummary,
+} from '@/hooks/useAgent';
 import { Member } from '@/types';
 import { formatCurrency, formatMonth, getCurrentMonth } from '@/lib/utils';
 import { PaymentSheet } from '../components/PaymentSheet';
@@ -13,6 +18,8 @@ import {
     Smartphone,
     Wrench,
     Calendar,
+    Users,
+    UtensilsCrossed,
 } from 'lucide-react';
 
 interface TodayRental {
@@ -37,6 +44,8 @@ export function HomeTab() {
     } = useTodaySummary();
 
     const monthly = useMonthlyAgentSummary();
+    const allAgents = useAllAgentsMonthly();
+    const rentalSummary = useMonthlyRentalSummary();
 
     const [sheetMember, setSheetMember] = useState<Member | null>(null);
     const [sheetMonth, setSheetMonth] = useState<string | undefined>();
@@ -113,6 +122,112 @@ export function HomeTab() {
                             {monthly.count !== 1 ? 's' : ''} recorded by me this
                             month
                         </p>
+                    )}
+                </div>
+
+                {/* ── Society-wide Monthly Cards ── */}
+                <div className='grid grid-cols-1 gap-3'>
+                    {/* All agents monthly */}
+                    <div className='bg-white border border-stone-200 rounded-2xl p-4'>
+                        <div className='flex items-center justify-between mb-3'>
+                            <div className='flex items-center gap-2'>
+                                <Users size={14} className='text-stone-400' />
+                                <span className='text-xs font-semibold text-stone-500 uppercase tracking-wide'>
+                                    {formatMonth(getCurrentMonth(), 'en')} — All
+                                    Collections
+                                </span>
+                            </div>
+                            <span className='text-xs bg-green-50 text-green-700 border border-green-100 px-2 py-0.5 rounded-full font-medium'>
+                                Society Total
+                            </span>
+                        </div>
+                        <div className='grid grid-cols-3 gap-2'>
+                            <div className='text-center'>
+                                <p className='text-lg font-bold text-stone-900'>
+                                    {allAgents.loading
+                                        ? '–'
+                                        : formatCurrency(
+                                              allAgents.monthlyTotal,
+                                          )}
+                                </p>
+                                <p className='text-xs text-stone-400'>
+                                    Monthly
+                                </p>
+                            </div>
+                            <div className='text-center border-x border-stone-100'>
+                                <p className='text-lg font-bold text-purple-700'>
+                                    {allAgents.loading
+                                        ? '–'
+                                        : formatCurrency(
+                                              allAgents.imamFoodTotal,
+                                          )}
+                                </p>
+                                <p className='text-xs text-stone-400'>
+                                    Imam Food
+                                </p>
+                            </div>
+                            <div className='text-center'>
+                                <p className='text-lg font-bold text-teal-700'>
+                                    {rentalSummary.loading
+                                        ? '–'
+                                        : formatCurrency(rentalSummary.total)}
+                                </p>
+                                <p className='text-xs text-stone-400'>Rental</p>
+                            </div>
+                        </div>
+                        {!allAgents.loading && (
+                            <p className='text-xs text-stone-400 text-center mt-2'>
+                                {allAgents.count} total payment
+                                {allAgents.count !== 1 ? 's' : ''} this month
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Imam Food separate card */}
+                    {!allAgents.loading && allAgents.imamFoodTotal > 0 && (
+                        <div className='bg-purple-50 border border-purple-100 rounded-2xl p-4 flex items-center gap-3'>
+                            <div className='w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0'>
+                                <UtensilsCrossed
+                                    size={18}
+                                    className='text-purple-600'
+                                />
+                            </div>
+                            <div className='flex-1'>
+                                <p className='text-sm font-semibold text-stone-800'>
+                                    Imam Food Allowance
+                                </p>
+                                <p className='text-xs text-stone-400'>
+                                    {allAgents.imamFoodCount} payment
+                                    {allAgents.imamFoodCount !== 1 ? 's' : ''}{' '}
+                                    this month
+                                </p>
+                            </div>
+                            <p className='text-base font-bold text-purple-700'>
+                                {formatCurrency(allAgents.imamFoodTotal)}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Rental Income separate card */}
+                    {!rentalSummary.loading && rentalSummary.total > 0 && (
+                        <div className='bg-teal-50 border border-teal-100 rounded-2xl p-4 flex items-center gap-3'>
+                            <div className='w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0'>
+                                <Wrench size={18} className='text-teal-600' />
+                            </div>
+                            <div className='flex-1'>
+                                <p className='text-sm font-semibold text-stone-800'>
+                                    Tools Rental Income
+                                </p>
+                                <p className='text-xs text-stone-400'>
+                                    {rentalSummary.count} record
+                                    {rentalSummary.count !== 1 ? 's' : ''} this
+                                    month
+                                </p>
+                            </div>
+                            <p className='text-base font-bold text-teal-700'>
+                                {formatCurrency(rentalSummary.total)}
+                            </p>
+                        </div>
                     )}
                 </div>
 

@@ -62,12 +62,20 @@ export default function ReportsPage() {
 
     const memberStatus = activeMembers.map((m) => {
         const paid = pastMonths.filter((month) =>
-            yearPayments.some((p) => p.member_id === m.id && p.month === month),
+            yearPayments.some(
+                (p) =>
+                    p.member_id === m.id &&
+                    p.month === month &&
+                    (p.payment_type === 'monthly' || !p.payment_type),
+            ),
         );
         const pending = pastMonths.filter(
             (month) =>
                 !yearPayments.some(
-                    (p) => p.member_id === m.id && p.month === month,
+                    (p) =>
+                        p.member_id === m.id &&
+                        p.month === month &&
+                        (p.payment_type === 'monthly' || !p.payment_type),
                 ),
         );
         return {

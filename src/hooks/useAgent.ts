@@ -347,14 +347,9 @@ export async function recordRental(params: {
   amount: number
   description?: string
   notes?: string
-  holdingPerson?: string
   recordedBy: string
 }): Promise<boolean> {
   try {
-    const noteText = [
-      params.notes,
-      params.holdingPerson ? `Cash held by: ${params.holdingPerson}` : null,
-    ].filter(Boolean).join(' | ') || null
     const { error } = await supabase.from('rental_income').insert({
       payer_name: params.payerName,
       payer_mobile: params.payerMobile || null,
@@ -371,4 +366,74 @@ export async function recordRental(params: {
     toast.error(e?.message || 'Unexpected error')
     return false
   }
+}
+
+// ============================================
+// ALL AGENTS MONTHLY SUMMARY — society-wide
+// ============================================
+export function useAllAgentsMonthly() {
+  const [data, setData] = useState({
+    total: 0, count: 0,
+    imamFoodTotal: 0, imamFoodCount: 0,
+    monthlyTotal: 0,
+  })
+  const [loading, setLoading] = useState(true)
+  const currentMonth = getCurrentMonth()
+
+  useEffect(() => {
+    async function run() {
+      const { data: rows, error } = await supabase
+        .from('payments')
+        .select('amount, payment_type')
+        .eq('month', currentMonth)
+
+      if (!error && rows) {
+        const monthly = rows.filter(p => (p.payment_type ?? 'monthly') === 'monthly')
+        const imam = rows.filter(p => p.payment_type === 'imam_food')
+        setData({
+          total: rows.reduce((s, p) => s + p.amount, 0),
+          count: rows.length,
+          monthlyTotal: monthly.reduce((s, p) => s + p.amount, 0),
+          imamFoodTotal: imam.reduce((s, p) => s + p.amount, 0),
+          imamFoodCount: imam.length,
+        })
+      }
+      setLoading(false)
+    }
+    run()
+  }, [currentMonth])
+
+  return { ...data, loading }
+}
+
+// ============================================
+// MONTHLY RENTAL INCOME SUMMARY
+// ============================================
+export function useMonthlyRentalSummary() {
+  const [data, setData] = useState({ total: 0, count: 0 })
+  const [loading, setLoading] = useState(true)
+  const currentMonth = getCurrentMonth()
+
+  useEffect(() => {
+    async function run() {
+      const [y, m] = currentMonth.split('-')
+      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
+      const { data: rows, error } = await supabase
+        .from('rental_income')
+        .select('amount')
+        .gte('income_date', `${y}-${m}-01`)
+        .lte('income_date', `${y}-${m}-${String(lastDay).padStart(2, '0')}`)
+
+      if (!error && rows) {
+        setData({
+          total: rows.reduce((s, r) => s + r.amount, 0),
+          count: rows.length,
+        })
+      }
+      setLoading(false)
+    }
+    run()
+  }, [currentMonth])
+
+  return { ...data, loading }
 }
