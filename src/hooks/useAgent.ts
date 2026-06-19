@@ -224,7 +224,7 @@ export async function recordPayment(params: {
       // Always fetch fresh member data from DB to avoid stale UI state
       const { data: freshMember, error: fetchErr } = await supabase
         .from('members')
-        .select('opening_balance, advance_balance, monthly_amount, due_from_month')
+        .select('opening_balance, advance_balance, monthly_amount, due_from_month, due_from_month_paid_amount')
         .eq('id', params.memberId)
         .single()
 
@@ -235,6 +235,9 @@ export async function recordPayment(params: {
 
       const unpaidMonths = await getUnpaidDueMonths(params.memberId, freshMember.due_from_month!)
       const monthlyRate = freshMember.monthly_amount
+      // Historical partial payment already made toward the FIRST unpaid month
+      // (e.g. admin recorded "paid ₹150 of ₹250" from paper records before this app existed)
+      let dueFromMonthPaidAmount = freshMember.due_from_month_paid_amount || 0
       let remaining = params.amount
 
       // Build payment rows: ONLY insert full months — never a partial month row.
@@ -251,18 +254,30 @@ export async function recordPayment(params: {
       }> = []
 
       for (const m of unpaidMonths) {
-        if (remaining < monthlyRate) break  // cannot cover a full month — stop here
+        // The amount still needed to fully close THIS month —
+        // for the first unpaid month this may be less than the full rate
+        // if a historical partial payment was recorded against it.
+        const amountNeededForMonth = monthlyRate - dueFromMonthPaidAmount
+        if (remaining < amountNeededForMonth) break  // cannot fully close this month — stop here
+
         rows.push({
           member_id: params.memberId,
           month: m,
-          amount: monthlyRate,
+          // Record the FULL monthly amount as the payment total for this month
+          // (the historical partial portion is implicit; this row completes the month)
+          amount: amountNeededForMonth,
           method: params.method,
           payment_type: pType,
           payment_date: today,
           recorded_by: params.recordedBy,
-          notes: noteText,
+          notes: dueFromMonthPaidAmount > 0
+            ? [noteText, `(₹${dueFromMonthPaidAmount} of this month was paid earlier per paper records)`].filter(Boolean).join(' | ')
+            : noteText,
         })
-        remaining -= monthlyRate
+        remaining -= amountNeededForMonth
+        // Only the first unpaid month can have a historical partial amount.
+        // Every month after that is reduced to the standard zero-partial case.
+        dueFromMonthPaidAmount = 0
       }
 
       // Compute what the new opening_balance should be:
@@ -272,20 +287,31 @@ export async function recordPayment(params: {
       const advanceGained = params.amount > totalDues ? params.amount - totalDues : 0
 
       // Advance due_from_month to the next unpaid month after the last fully-paid one.
-      // If no full months were paid (amount < monthlyRate), keep original due_from_month.
+      // If no full months were paid (amount couldn't cover even the first), keep original.
       let newDueFromMonth: string | null = null
+      let newDueFromMonthPaidAmount = 0
       if (newBalance > 0 && rows.length > 0) {
         newDueFromMonth = nextMonth(rows[rows.length - 1].month)
+        // The new due_from_month is a fresh, never-touched month
+        newDueFromMonthPaidAmount = 0
       } else if (newBalance > 0) {
-        newDueFromMonth = freshMember.due_from_month  // not enough to clear even one month
+        // Not enough to clear even the first unpaid month — keep due_from_month,
+        // but bump up how much of it has now been paid
+        newDueFromMonth = freshMember.due_from_month
+        newDueFromMonthPaidAmount = Math.min(
+          monthlyRate - 0.01, // never let it reach/exceed monthlyRate (would mean month is fully paid)
+          (freshMember.due_from_month_paid_amount || 0) + params.amount,
+        )
       }
-      // if newBalance === 0, due_from_month stays null (all dues cleared)
+      // if newBalance === 0, due_from_month stays null (all dues cleared) and paid_amount resets to 0
 
-      // Special case: payment is less than one full month — just reduce the balance
+      // Special case: payment couldn't fully close even the first unpaid month —
+      // just update the balance and the partial-paid tracker, no payment row inserted
       if (rows.length === 0) {
         await supabase.from('members').update({
           opening_balance: newBalance,
           due_from_month: newDueFromMonth,
+          due_from_month_paid_amount: newBalance > 0 ? newDueFromMonthPaidAmount : 0,
         }).eq('id', params.memberId)
         toast.success(`₹${params.amount} applied to arrears. Remaining arrears: ₹${newBalance}`)
         return true
@@ -303,6 +329,7 @@ export async function recordPayment(params: {
       await supabase.from('members').update({
         opening_balance: newBalance,
         due_from_month: newDueFromMonth,
+        due_from_month_paid_amount: newBalance > 0 ? newDueFromMonthPaidAmount : 0,
         advance_balance: (freshMember.advance_balance || 0) + advanceGained,
       }).eq('id', params.memberId)
 
