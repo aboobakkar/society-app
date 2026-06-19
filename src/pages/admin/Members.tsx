@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { formatCurrency, getCurrentMonth } from '@/lib/utils';
 import { Search, Plus, Edit2, PowerOff, Power } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const EMPTY_FORM = {
     name: '',
@@ -29,6 +30,7 @@ const EMPTY_FORM = {
     notes: '',
     opening_balance: 0,
     due_from_month: '',
+    due_from_month_paid_amount: 0,
     advance_balance: 0,
 };
 
@@ -73,6 +75,7 @@ export default function MembersPage() {
             notes: m.notes || '',
             opening_balance: m.opening_balance || 0,
             due_from_month: m.due_from_month || '',
+            due_from_month_paid_amount: m.due_from_month_paid_amount || 0,
             advance_balance: m.advance_balance || 0,
         });
         setEditId(m.id);
@@ -81,6 +84,20 @@ export default function MembersPage() {
 
     const handleSave = async () => {
         if (!form.name.trim() || !form.mobile.trim()) return;
+        // Validate partial-paid amount against monthly rate
+        if (
+            form.due_from_month_paid_amount > 0 &&
+            form.due_from_month_paid_amount >= form.monthly_amount
+        ) {
+            toast.error(
+                'Already-paid amount must be less than the monthly amount. If the full month was paid, advance "Due From Month" instead.',
+            );
+            return;
+        }
+        if (form.due_from_month_paid_amount > 0 && !form.due_from_month) {
+            toast.error('Set "Due From Month" before entering a partial-paid amount.');
+            return;
+        }
         setSaving(true);
         try {
             let success = false;
@@ -372,13 +389,80 @@ export default function MembersPage() {
                                 onChange={(e) => f('opening_balance', Number(e.target.value))}
                             />
                         </div>
+
+                        {/* Partial payment already made in due_from_month (from paper records) */}
+                        {form.due_from_month && (
+                            <div className='mt-3'>
+                                <Input
+                                    label={`Already paid in ${form.due_from_month} (₹)`}
+                                    type='number'
+                                    value={form.due_from_month_paid_amount || ''}
+                                    onChange={(e) =>
+                                        f(
+                                            'due_from_month_paid_amount',
+                                            Number(e.target.value),
+                                        )
+                                    }
+                                    hint='Fill this in only if the member already paid part of this month from your paper records. Leave 0 if the whole month is unpaid.'
+                                />
+                                {form.due_from_month_paid_amount > 0 &&
+                                    form.due_from_month_paid_amount >=
+                                        form.monthly_amount && (
+                                        <p className='text-xs text-red-500 mt-1'>
+                                            This must be less than the monthly
+                                            amount (₹{form.monthly_amount}). If
+                                            the full month was paid, change
+                                            "Due From Month" to the next month
+                                            instead.
+                                        </p>
+                                    )}
+                            </div>
+                        )}
+
+                        {/* Live breakdown preview — shows exact month-by-month picture */}
                         {form.due_from_month && (form.opening_balance as number) > 0 && (
-                            <p className='text-xs text-amber-600 mt-2'>
-                                ⚡ {i18n.dueMonthsCalc(
-                                    Math.ceil((form.opening_balance as number) / (form.monthly_amount || 500)),
-                                    form.monthly_amount || 500
-                                )}
-                            </p>
+                            <div className='mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5'>
+                                {(() => {
+                                    const rate = form.monthly_amount || 500;
+                                    const partial = form.due_from_month_paid_amount || 0;
+                                    const balance = form.opening_balance as number;
+                                    // Remaining owed for the due_from_month itself
+                                    const dueMonthRemaining = Math.max(0, rate - partial);
+                                    // Balance left after accounting for the due month's remaining portion
+                                    const restOfBalance = Math.max(0, balance - dueMonthRemaining);
+                                    const fullMonthsAfter = Math.floor(restOfBalance / rate);
+                                    const leftoverMismatch = restOfBalance - fullMonthsAfter * rate;
+
+                                    return (
+                                        <div className='text-xs text-amber-800 space-y-1'>
+                                            <p className='font-semibold'>
+                                                Breakdown for {form.due_from_month} onward:
+                                            </p>
+                                            {partial > 0 ? (
+                                                <p>
+                                                    • {form.due_from_month}: ₹{partial} already paid, ₹{dueMonthRemaining} still due
+                                                </p>
+                                            ) : (
+                                                <p>
+                                                    • {form.due_from_month}: fully unpaid (₹{rate})
+                                                </p>
+                                            )}
+                                            {fullMonthsAfter > 0 && (
+                                                <p>
+                                                    • + {fullMonthsAfter} more full month{fullMonthsAfter > 1 ? 's' : ''} unpaid (₹{rate} each)
+                                                </p>
+                                            )}
+                                            {leftoverMismatch > 0.01 && (
+                                                <p className='text-red-600 font-medium'>
+                                                    ⚠ ₹{leftoverMismatch.toFixed(0)} doesn't divide evenly into full months.
+                                                    Check the Opening Balance — it should equal {form.due_from_month_paid_amount > 0 ? 'the remaining due month + ' : ''}
+                                                    a whole number of ₹{rate} months.
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
                         )}
                     </div>
 

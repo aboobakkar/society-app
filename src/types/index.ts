@@ -31,6 +31,7 @@ export interface Member {
   notes: string | null
   opening_balance: number
   due_from_month: string | null
+  due_from_month_paid_amount: number
   advance_balance: number
   created_at: string
   updated_at: string
