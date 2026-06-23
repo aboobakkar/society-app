@@ -6,7 +6,7 @@ import {
     useMonthlyRentalSummary,
 } from '@/hooks/useAgent';
 import { Member } from '@/types';
-import { formatCurrency, formatMonth, getCurrentMonth } from '@/lib/utils';
+import { formatCurrency, formatMonth, getCollectionMonth } from '@/lib/utils';
 import { PaymentSheet } from '../components/PaymentSheet';
 import { RentalSheet } from '../components/RentalSheet';
 import { supabase } from '@/lib/supabase';
@@ -84,7 +84,7 @@ export function HomeTab() {
                         <div className='flex items-center gap-2'>
                             <Calendar size={14} className='text-stone-400' />
                             <span className='text-xs font-semibold text-stone-500 uppercase tracking-wide'>
-                                {formatMonth(getCurrentMonth(), 'en')}
+                                {formatMonth(getCollectionMonth(), 'en')}
                             </span>
                         </div>
                     </div>

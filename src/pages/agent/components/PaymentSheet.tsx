@@ -3,6 +3,7 @@ import { Member } from '@/types';
 import {
     formatCurrency,
     getCurrentMonth,
+    getCollectionMonth,
     getMonthOptions,
     formatMonth,
 } from '@/lib/utils';
@@ -46,7 +47,7 @@ export function PaymentSheet({
     const holdingPersons = useHoldingPersons();
 
     const [editing, setEditing] = useState(false);
-    const [month, setMonth] = useState(defaultMonth || getCurrentMonth());
+    const [month, setMonth] = useState(defaultMonth || getCollectionMonth());
 
     // FIX: All useState calls must come BEFORE any derived variables that use them.
     // Previously hasDues was computed before paymentType useState — always read undefined.
@@ -137,7 +138,7 @@ export function PaymentSheet({
     };
 
     const monthOptions = getMonthOptions(2023)
-        .filter((m) => m <= getCurrentMonth())
+        .filter((m) => m <= getCollectionMonth())
         .reverse();
 
     if (!open || !member) return null;

@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useDueMembers } from '@/hooks/useAgent'
 import { Member } from '@/types'
-import { formatCurrency, getCurrentMonth, formatMonth } from '@/lib/utils'
+import { formatCurrency, getCollectionMonth, formatMonth } from '@/lib/utils'
 import { PaymentSheet } from '../components/PaymentSheet'
 import { Search, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
 
 export function DueTab() {
-  const currentMonth = getCurrentMonth()
+  const currentMonth = getCollectionMonth()
   const { members, loading, refetch } = useDueMembers(currentMonth)
   const [query, setQuery] = useState('')
   const [sheetMember, setSheetMember] = useState<Member | null>(null)

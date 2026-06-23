@@ -18,7 +18,7 @@ import {
 import {
     formatCurrency,
     formatMonth,
-    getCurrentMonth,
+    getCollectionMonth,
     getMonthOptions,
     formatDate,
 } from '@/lib/utils';
@@ -49,7 +49,7 @@ function nextMonth(ym: string): string {
 export default function PaymentsPage() {
     const { i18n, lang } = useLang();
     const { profile } = useAuth();
-    const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+    const [selectedMonth, setSelectedMonth] = useState(getCollectionMonth());
     const { members, updateMember } = useMembers();
     const { payments, loading, addPayment, deletePayment, addPaymentsBulk } =
         usePayments(selectedMonth);
@@ -109,7 +109,7 @@ export default function PaymentsPage() {
     const unpaidDueMonths = (() => {
         if (!selectedMember?.due_from_month || allDuesCleared) return [];
         const paidSet = new Set(memberPaidMonths);
-        const current = getCurrentMonth();
+        const current = getCollectionMonth();
         const opts: string[] = [];
         let cursor = selectedMember.due_from_month;
         while (cursor <= current) {
@@ -153,7 +153,7 @@ export default function PaymentsPage() {
 
     // ── compute if all due months are cleared ────────────────────────────────
     const computeCleared = (dueFrom: string, paidMonths: string[]): boolean => {
-        const current = getCurrentMonth();
+        const current = getCollectionMonth();
         const paidSet = new Set(paidMonths);
         let cursor = dueFrom;
         while (cursor <= current) {
@@ -188,7 +188,7 @@ export default function PaymentsPage() {
             if (!cleared) {
                 // Pre-select the earliest unpaid due month
                 const paidSet = new Set(paid);
-                const current = getCurrentMonth();
+                const current = getCollectionMonth();
                 let cursor = member.due_from_month;
                 while (cursor <= current && paidSet.has(cursor))
                     cursor = nextMonth(cursor);
@@ -231,7 +231,7 @@ export default function PaymentsPage() {
             setAllDuesCleared(cleared);
             if (!cleared) {
                 const paidSet = new Set(paid);
-                const current = getCurrentMonth();
+                const current = getCollectionMonth();
                 let cursor = member.due_from_month;
                 while (cursor <= current && paidSet.has(cursor))
                     cursor = nextMonth(cursor);
@@ -833,7 +833,7 @@ export default function PaymentsPage() {
                             onChange={(e) => f('month', e.target.value)}
                         >
                             {monthOptions
-                                .filter((m) => m <= getCurrentMonth())
+                                .filter((m) => m <= getCollectionMonth())
                                 .slice()
                                 .reverse()
                                 .map((m) => (

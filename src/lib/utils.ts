@@ -29,6 +29,21 @@ export function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
+// The society always collects the PREVIOUS month's subscription during the
+// current calendar month (e.g. in June, agents collect May's dues).
+// Use this — NOT getCurrentMonth() — anywhere that means "the month being
+// collected right now" (due lists, today's collection summary, payment
+// sheet default month, etc). Keep getCurrentMonth() for anything tied to
+// today's actual calendar date (joined_month default, report filters,
+// arrears month-counting, "no future months" pickers).
+export function getCollectionMonth(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() // 0-indexed; getMonth()=0 is Jan, so this IS "previous month" in 1-indexed terms
+  if (m === 0) return `${y - 1}-12`
+  return `${y}-${String(m).padStart(2, '0')}`
+}
+
 export function getMonthOptions(fromYear = 2023, toYear?: number): string[] {
   const now = new Date()
   // Never show future months by default
@@ -50,8 +65,13 @@ export function getMonthsInYear(year: string): string[] {
   )
 }
 
+// Used by yearly payment-status grids (member portal, reports) to decide
+// whether a month is "due" yet. Compares against the COLLECTION month
+// (= previous calendar month), since the society always collects last
+// month's subscription during the current month — e.g. in June, May is
+// the latest month that should show red/green; June itself is still grey.
 export function isPastOrCurrentMonth(yearMonth: string): boolean {
-  const current = getCurrentMonth()
+  const current = getCollectionMonth()
   return yearMonth <= current
 }
 

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Member, Payment } from '@/types'
-import { getCurrentMonth } from '@/lib/utils'
+import { getCurrentMonth, getCollectionMonth } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 // ============================================
 // DUE MEMBERS — ordered by collection_order
 // ============================================
 export function useDueMembers(month?: string) {
-  const targetMonth = month || getCurrentMonth()
+  const targetMonth = month || getCollectionMonth()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -47,7 +47,7 @@ export function useAllMembers() {
   const [members, setMembers] = useState<Member[]>([])
   const [paidThisMonth, setPaidThisMonth] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
-  const currentMonth = getCurrentMonth()
+  const currentMonth = getCollectionMonth()
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -116,7 +116,7 @@ export function useTodaySummary() {
 export function useMonthlyAgentSummary() {
   const [data, setData] = useState({ total: 0, count: 0, cashTotal: 0, onlineTotal: 0 })
   const [loading, setLoading] = useState(true)
-  const currentMonth = getCurrentMonth()
+  const currentMonth = getCollectionMonth() // payments.month is a subscription label, always one behind calendar
 
   useEffect(() => {
     async function run() {
@@ -170,9 +170,10 @@ function nextMonth(ym: string): string {
 }
 
 // Helper: get all unpaid due months for a member in order oldest->newest
-// Includes the current month so agent can collect it along with arrears
+// Walks up to the COLLECTION month (= previous calendar month), since the
+// society always collects last month's subscription during the current month.
 async function getUnpaidDueMonths(memberId: string, dueFromMonth: string): Promise<string[]> {
-  const current = new Date().toISOString().slice(0, 7) // YYYY-MM
+  const collectionMonth = getCollectionMonth() // YYYY-MM, one month behind calendar
 
   // Get all monthly payments already recorded for this member
   const { data } = await supabase
@@ -183,10 +184,10 @@ async function getUnpaidDueMonths(memberId: string, dueFromMonth: string): Promi
 
   const paidMonths = new Set((data || []).map((p: { month: string }) => p.month))
 
-  // Walk from due_from_month up to current month, collect only unpaid ones
+  // Walk from due_from_month up to the collection month, collect only unpaid ones
   const unpaid: string[] = []
   let cursor = dueFromMonth
-  while (cursor <= current) {
+  while (cursor <= collectionMonth) {
     if (!paidMonths.has(cursor)) unpaid.push(cursor)
     cursor = nextMonth(cursor)
   }
@@ -439,7 +440,7 @@ export function useAllAgentsMonthly() {
     monthlyTotal: 0,
   })
   const [loading, setLoading] = useState(true)
-  const currentMonth = getCurrentMonth()
+  const currentMonth = getCollectionMonth() // payments.month is a subscription label, always one behind calendar
 
   useEffect(() => {
     async function run() {

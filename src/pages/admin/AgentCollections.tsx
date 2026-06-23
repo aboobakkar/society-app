@@ -3,18 +3,18 @@ import { useAgentSummary, useDailyCollection } from '@/hooks/useFeatures';
 import { PageHeader, Card, StatCard, Spinner } from '@/components/ui';
 import {
     formatCurrency,
-    getCurrentMonth,
+    getCollectionMonth,
     getMonthOptions,
     formatDate,
 } from '@/lib/utils';
 import { Users, Calendar } from 'lucide-react';
 
 export default function AgentCollectionsPage() {
-    const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+    const [selectedMonth, setSelectedMonth] = useState(getCollectionMonth());
     const { byAgent, loading: agentLoading } = useAgentSummary(selectedMonth);
     const { data: dailyData, loading: dailyLoading } =
         useDailyCollection(selectedMonth);
-    const currentMonth2 = getCurrentMonth();
+    const currentMonth2 = getCollectionMonth();
     const monthOptions = getMonthOptions(2023).filter(
         (m) => m <= currentMonth2,
     );

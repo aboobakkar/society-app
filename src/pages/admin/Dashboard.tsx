@@ -8,6 +8,7 @@ import {
     formatCurrency,
     formatMonth,
     getCurrentMonth,
+    getCollectionMonth,
     formatDate,
 } from '@/lib/utils';
 import { TrendingUp, TrendingDown, Users, AlertCircle } from 'lucide-react';
@@ -26,17 +27,18 @@ function SkeletonRow() {
 
 export default function AdminDashboard() {
     const { i18n, lang } = useLang();
-    const currentMonth = getCurrentMonth();
+    const currentMonth = getCollectionMonth(); // payments.month is a subscription label, always one behind calendar
+    const calendarMonth = getCurrentMonth(); // for real calendar-dated data (expenses, rental, holding)
 
     const { members, loading: mLoading } = useMembers();
     const { payments, loading: pLoading } = usePayments(currentMonth);
-    const { expenses, loading: eLoading } = useExpenses(currentMonth);
-    const { totalRental, loading: rLoading } = useRentalIncome(currentMonth);
+    const { expenses, loading: eLoading } = useExpenses(calendarMonth);
+    const { totalRental, loading: rLoading } = useRentalIncome(calendarMonth);
     const {
         balances: holdingBalances,
         totalHeld,
         loading: hLoading,
-    } = useHoldingSummary(currentMonth);
+    } = useHoldingSummary(calendarMonth);
     const navigate = useNavigate();
 
     // Never block the full page — render with whatever data is available
