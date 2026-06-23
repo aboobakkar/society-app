@@ -139,7 +139,7 @@ export function HomeTab() {
                     <div className='px-4 py-3'>
                         <div className='flex items-center justify-between mb-2'>
                             <p className='text-xs text-stone-400'>
-                                My collections
+                                My collections this month
                             </p>
                             <span className='text-xs bg-indigo-50 text-indigo-600 border border-indigo-100 px-2 py-0.5 rounded-full font-medium'>
                                 {monthly.loading

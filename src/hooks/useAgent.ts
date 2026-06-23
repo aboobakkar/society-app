@@ -116,18 +116,28 @@ export function useTodaySummary() {
 export function useMonthlyAgentSummary() {
   const [data, setData] = useState({ total: 0, count: 0, cashTotal: 0, onlineTotal: 0 })
   const [loading, setLoading] = useState(true)
-  const currentMonth = getCollectionMonth() // payments.month is a subscription label, always one behind calendar
+  // "My collections this month" = cash physically collected this CALENDAR month,
+  // regardless of which subscription month it was applied to (e.g. arrears for
+  // Jan/Feb/Mar collected today in June should all count toward June's total).
+  // So filter by payment_date (real date), not payments.month (subscription label).
+  const calendarMonth = getCurrentMonth()
 
   useEffect(() => {
     async function run() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
+      const [y, m] = calendarMonth.split('-')
+      const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate()
+      const start = `${y}-${m}-01`
+      const end = `${y}-${m}-${String(lastDay).padStart(2, '0')}`
+
       const { data, error } = await supabase
         .from('payments')
         .select('amount, method')
         .eq('recorded_by', user.id)
-        .eq('month', currentMonth)
+        .gte('payment_date', start)
+        .lte('payment_date', end)
 
       if (!error && data) {
         const total = data.reduce((s, p) => s + p.amount, 0)
@@ -138,7 +148,7 @@ export function useMonthlyAgentSummary() {
       setLoading(false)
     }
     run()
-  }, [currentMonth])
+  }, [calendarMonth])
 
   return { ...data, loading }
 }
@@ -341,7 +351,52 @@ export async function recordPayment(params: {
       return true
     }
 
-    // -- CASE 2: No dues -> single payment for the selected month --------------
+    // -- CASE 2: No existing dues -> single payment for the selected month ----
+    if (pType === 'monthly' && params.member) {
+      const rate = params.member.monthly_amount
+
+      // Partial payment for the month (less than the monthly rate) —
+      // do NOT insert a payment row (that would wrongly mark the month paid).
+      // Instead, convert the shortfall into a due exactly like historical
+      // arrears: due_from_month = this month, due_from_month_paid_amount =
+      // what was actually paid, opening_balance = the remaining shortfall.
+      if (params.amount < rate) {
+        const shortfall = rate - params.amount
+
+        // Always re-check against fresh data in case of stale UI state
+        const { data: fresh, error: fetchErr } = await supabase
+          .from('members')
+          .select('opening_balance, due_from_month')
+          .eq('id', params.memberId)
+          .single()
+
+        if (fetchErr || !fresh) {
+          toast.error('Could not fetch member data. Please try again.')
+          return false
+        }
+        if (fresh.due_from_month) {
+          // Member picked up dues since this screen loaded — don't silently
+          // overwrite an existing arrear chain with a different one.
+          toast.error('This member now has outstanding dues — reopen the payment sheet to allocate correctly.')
+          return false
+        }
+
+        const { error: updErr } = await supabase.from('members').update({
+          due_from_month: params.month,
+          due_from_month_paid_amount: params.amount,
+          opening_balance: shortfall,
+        }).eq('id', params.memberId)
+
+        if (updErr) {
+          toast.error(updErr.message)
+          return false
+        }
+
+        toast.success(`₹${params.amount} recorded · ₹${shortfall} balance due for ${params.month}`)
+        return true
+      }
+    }
+
     const { error } = await supabase.from('payments').insert({
       member_id: params.memberId,
       month: params.month,

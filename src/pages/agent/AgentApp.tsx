@@ -17,7 +17,7 @@ const TABS: { id: Tab; label: string; icon: typeof Home }[] = [
 export default function AgentApp() {
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<Tab>('due')
+  const [activeTab, setActiveTab] = useState<Tab>('home')
 
   const handleSignOut = async () => {
     await signOut()

@@ -336,53 +336,86 @@ export default function PaymentsPage() {
                 !showDueMonthSelector
             ) {
                 // ── Single month payment (non-due or imam_food) ──────────────
-                const singleNote = [
-                    form.notes,
-                    holdingPerson ? `Cash held by: ${holdingPerson}` : null,
-                ]
-                    .filter(Boolean)
-                    .join(' | ');
-                const result = await addPayment({
-                    ...form,
-                    notes: singleNote || undefined,
-                    recorded_by: profile?.id,
-                });
-                success = !!result;
 
+                // Partial payment for a member with NO existing dues:
+                // do NOT insert a payment row (it would wrongly mark the
+                // month as paid). Convert the shortfall into a due instead,
+                // same mechanism as historical arrears.
                 if (
-                    success &&
-                    result &&
                     form.payment_type === 'monthly' &&
-                    selectedMember
+                    selectedMember &&
+                    !hasDues &&
+                    paidAmount > 0 &&
+                    paidAmount < (selectedMember.monthly_amount || 0)
                 ) {
-                    // Handle advance for non-due members paying more
-                    const excess =
-                        paidAmount - (selectedMember.monthly_amount || 0);
-                    if (excess > 0) {
-                        await updateMember(form.member_id, {
-                            advance_balance:
-                                (selectedMember.advance_balance || 0) + excess,
-                        });
+                    const shortfall =
+                        (selectedMember.monthly_amount || 0) - paidAmount;
+
+                    const updated = await updateMember(form.member_id, {
+                        due_from_month: form.month,
+                        due_from_month_paid_amount: paidAmount,
+                        opening_balance: shortfall,
+                    });
+
+                    if (updated) {
+                        toast.success(
+                            `₹${paidAmount} recorded · ₹${shortfall} balance due for ${form.month}`,
+                        );
+                        success = true;
                     }
-                    // Handle partially-cleared dues
+                } else {
+                    const singleNote = [
+                        form.notes,
+                        holdingPerson
+                            ? `Cash held by: ${holdingPerson}`
+                            : null,
+                    ]
+                        .filter(Boolean)
+                        .join(' | ');
+                    const result = await addPayment({
+                        ...form,
+                        notes: singleNote || undefined,
+                        recorded_by: profile?.id,
+                    });
+                    success = !!result;
+
                     if (
-                        selectedMember.due_from_month &&
-                        (selectedMember.opening_balance || 0) > 0
+                        success &&
+                        result &&
+                        form.payment_type === 'monthly' &&
+                        selectedMember
                     ) {
-                        const remaining =
-                            (selectedMember.opening_balance || 0) - paidAmount;
-                        if (remaining <= 0) {
+                        // Handle advance for non-due members paying more
+                        const excess =
+                            paidAmount - (selectedMember.monthly_amount || 0);
+                        if (excess > 0) {
                             await updateMember(form.member_id, {
-                                opening_balance: 0,
-                                due_from_month: null,
                                 advance_balance:
                                     (selectedMember.advance_balance || 0) +
-                                    Math.abs(remaining),
+                                    excess,
                             });
-                        } else {
-                            await updateMember(form.member_id, {
-                                opening_balance: remaining,
-                            });
+                        }
+                        // Handle partially-cleared dues
+                        if (
+                            selectedMember.due_from_month &&
+                            (selectedMember.opening_balance || 0) > 0
+                        ) {
+                            const remaining =
+                                (selectedMember.opening_balance || 0) -
+                                paidAmount;
+                            if (remaining <= 0) {
+                                await updateMember(form.member_id, {
+                                    opening_balance: 0,
+                                    due_from_month: null,
+                                    advance_balance:
+                                        (selectedMember.advance_balance ||
+                                            0) + Math.abs(remaining),
+                                });
+                            } else {
+                                await updateMember(form.member_id, {
+                                    opening_balance: remaining,
+                                });
+                            }
                         }
                     }
                 }
