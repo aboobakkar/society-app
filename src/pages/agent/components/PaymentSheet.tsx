@@ -432,6 +432,32 @@ export function PaymentSheet({
                                     </div>
                                 )}
 
+                            {/* Shortfall preview — shown when no dues and paying less than monthly */}
+                            {!hasDues &&
+                                member &&
+                                parseFloat(amount) > 0 &&
+                                parseFloat(amount) < member.monthly_amount && (
+                                    <div className='bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs'>
+                                        <p className='font-semibold text-amber-800'>
+                                            Partial payment — ₹
+                                            {(
+                                                member.monthly_amount -
+                                                parseFloat(amount)
+                                            ).toFixed(0)}{' '}
+                                            balance will be due
+                                        </p>
+                                        <p className='text-amber-700 mt-0.5'>
+                                            {month} will NOT be marked as
+                                            paid. The remaining ₹
+                                            {(
+                                                member.monthly_amount -
+                                                parseFloat(amount)
+                                            ).toFixed(0)}{' '}
+                                            carries forward as a due.
+                                        </p>
+                                    </div>
+                                )}
+
                             {/* Method */}
                             <div>
                                 <label className='block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2'>
