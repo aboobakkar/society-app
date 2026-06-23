@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useAllMembers } from '@/hooks/useAgent'
 import { Member } from '@/types'
-import { formatCurrency, getCurrentMonth } from '@/lib/utils'
+import { formatCurrency, getCollectionMonth } from '@/lib/utils'
 import { PaymentSheet } from '../components/PaymentSheet'
 import { Search, CheckCircle2, ChevronRight } from 'lucide-react'
 
@@ -149,7 +149,7 @@ export function SearchTab() {
       <PaymentSheet
         member={sheetMember}
         open={!!sheetMember}
-        defaultMonth={getCurrentMonth()}
+        defaultMonth={getCollectionMonth()}
         onClose={() => setSheetMember(null)}
         onSuccess={() => sheetMember && handleSuccess(sheetMember.id)}
       />

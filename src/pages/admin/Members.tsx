@@ -125,6 +125,39 @@ export default function MembersPage() {
 
     const f = (k: string, v: string | number) =>
         setForm((prev) => ({ ...prev, [k]: v }));
+
+    // Count months from `from` (YYYY-MM) to `to` (YYYY-MM) inclusive of `from`.
+    // e.g. monthsBetween('2025-07', '2026-06') = 12 (Jul'25 through Jun'26)
+    const monthsBetween = (from: string, to: string): number => {
+        const [fy, fm] = from.split('-').map(Number);
+        const [ty, tm] = to.split('-').map(Number);
+        return (ty - fy) * 12 + (tm - fm) + 1;
+    };
+
+    // Auto-calculate Opening Balance:
+    // (months owed × monthly amount) − amount already paid toward the first month
+    const calculateOpeningBalance = () => {
+        if (!form.due_from_month) {
+            toast.error('Set "Due From Month" first');
+            return;
+        }
+        const monthCount = monthsBetween(form.due_from_month, getCurrentMonth());
+        if (monthCount <= 0) {
+            toast.error('Due From Month cannot be in the future');
+            return;
+        }
+        const rawTotal = monthCount * (form.monthly_amount || 0);
+        const calculated = rawTotal - (form.due_from_month_paid_amount || 0);
+        f('opening_balance', Math.max(0, calculated));
+        toast.success(
+            `${monthCount} month${monthCount > 1 ? 's' : ''} × ₹${form.monthly_amount} = ₹${rawTotal}${
+                form.due_from_month_paid_amount > 0
+                    ? ` − ₹${form.due_from_month_paid_amount} already paid = ₹${Math.max(0, calculated)}`
+                    : ''
+            }`,
+        );
+    };
+
     const closeModal = () => {
         if (!saving) {
             setShowModal(false);
@@ -382,12 +415,26 @@ export default function MembersPage() {
                                 onChange={(e) => f('due_from_month', e.target.value)}
                                 hint={i18n.dueFromMonthHint}
                             />
-                            <Input
-                                label={i18n.openingBalance}
-                                type='number'
-                                value={form.opening_balance || ''}
-                                onChange={(e) => f('opening_balance', Number(e.target.value))}
-                            />
+                            <div>
+                                <div className='flex items-center justify-between mb-1'>
+                                    <label className='block text-xs font-medium text-stone-600'>
+                                        {i18n.openingBalance}
+                                    </label>
+                                    <button
+                                        type='button'
+                                        onClick={calculateOpeningBalance}
+                                        disabled={!form.due_from_month}
+                                        className='text-xs font-medium text-amber-700 hover:text-amber-800 disabled:text-stone-300 disabled:cursor-not-allowed'
+                                    >
+                                        Calculate ⚡
+                                    </button>
+                                </div>
+                                <Input
+                                    value={form.opening_balance || ''}
+                                    type='number'
+                                    onChange={(e) => f('opening_balance', Number(e.target.value))}
+                                />
+                            </div>
                         </div>
 
                         {/* Partial payment already made in due_from_month (from paper records) */}
