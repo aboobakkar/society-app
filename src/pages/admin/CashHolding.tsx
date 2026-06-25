@@ -17,8 +17,6 @@ import {
 } from '@/components/ui';
 import {
     formatCurrency,
-    getCurrentMonth,
-    getMonthOptions,
     formatDate,
 } from '@/lib/utils';
 import { ArrowRight, Banknote, RefreshCw, History } from 'lucide-react';
@@ -26,10 +24,8 @@ import { ArrowRight, Banknote, RefreshCw, History } from 'lucide-react';
 export default function CashHoldingPage() {
     const { profile } = useAuth();
     const { settings } = useSettings();
-    const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
     const { balances, transfers, totalHeld, loading, refetch } =
-        useHoldingSummary(selectedMonth);
-    const monthOptions = getMonthOptions(2023);
+        useHoldingSummary();
 
     // Transfer modal state
     const [showTransfer, setShowTransfer] = useState(false);
@@ -88,23 +84,9 @@ export default function CashHoldingPage() {
         <div>
             <PageHeader
                 title='Cash Holdings'
-                subtitle='Track who holds how much cash and transfer between persons'
+                subtitle='Track who holds how much cash (all-time) and transfer between persons'
                 action={
                     <div className='flex gap-2'>
-                        <select
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value)}
-                            className='px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500'
-                        >
-                            {monthOptions
-                                .slice()
-                                .reverse()
-                                .map((m) => (
-                                    <option key={m} value={m}>
-                                        {m}
-                                    </option>
-                                ))}
-                        </select>
                         <Button onClick={() => openTransfer()}>
                             <ArrowRight size={15} className='mr-1.5' /> Transfer
                         </Button>
@@ -137,7 +119,7 @@ export default function CashHoldingPage() {
                     valueClass='text-stone-700'
                 />
                 <StatCard
-                    label='Transfers This Month'
+                    label='Total Transfers'
                     value={loading ? '...' : transfers.length}
                     valueClass='text-stone-700'
                 />
