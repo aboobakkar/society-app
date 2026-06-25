@@ -38,7 +38,7 @@ export default function AdminDashboard() {
         balances: holdingBalances,
         totalHeld,
         loading: hLoading,
-    } = useHoldingSummary(calendarMonth);
+    } = useHoldingSummary(); // all-time running cash balance, not scoped to a month
     const navigate = useNavigate();
 
     // Never block the full page — render with whatever data is available
