@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent } from 'react'
 import { useSettings } from '@/hooks/useData'
 import { useLang } from '@/hooks/useLang'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
+import { supabase, createEphemeralClient } from '@/lib/supabase'
 import { Button, Input, Card, PageHeader, Spinner } from '@/components/ui'
 import { Users, Settings2, Lock, UserPlus, Trash2, RefreshCw } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -50,7 +50,10 @@ function AgentsPanel() {
     try {
       // Create auth user via Supabase admin API is not available client-side,
       // so we use signUp which auto-creates a profile (role defaults to 'member'), then promote.
-      const { data: authData, error: signUpErr } = await supabase.auth.signUp({
+      // signUp() replaces the *current* session on whatever client runs it, so we use a
+      // throwaway client here to avoid logging the admin out and into the new agent account.
+      const signupClient = createEphemeralClient()
+      const { data: authData, error: signUpErr } = await signupClient.auth.signUp({
         email: form.email,
         password: form.password,
         options: { data: { full_name: form.full_name || form.email } }
@@ -59,7 +62,8 @@ function AgentsPanel() {
         toast.error(signUpErr?.message || 'Failed to create user')
         return
       }
-      // Promote to agent
+      // Promote to agent — runs on the admin's still-active session (the `supabase` client),
+      // which is what's authorized to change another profile's role.
       const { error: updateErr } = await supabase
         .from('profiles')
         .update({ role: 'agent', full_name: form.full_name || null })
