@@ -272,7 +272,7 @@ export default function SettingsPage() {
               <Input label={i18n.societyNameEn} value={form.society_name} onChange={e => setForm(p => ({ ...p, society_name: e.target.value }))} />
               <Input label={i18n.societyNameMl} value={form.society_name_ml} onChange={e => setForm(p => ({ ...p, society_name_ml: e.target.value }))} className="font-malayalam" />
               <div className="grid grid-cols-2 gap-3">
-                <Input label={i18n.defaultMonthlyAmount} type="number" value={form.default_monthly_amount} onChange={e => setForm(p => ({ ...p, default_monthly_amount: Number(e.target.value) }))} />
+                <Input label={i18n.defaultMonthlyAmount} type="number" value={form.default_monthly_amount || ''} onChange={e => setForm(p => ({ ...p, default_monthly_amount: Number(e.target.value) }))} />
                 <Input label={i18n.currentFiscalYear} value={form.current_fiscal_year} onChange={e => setForm(p => ({ ...p, current_fiscal_year: e.target.value }))} />
               </div>
               <Input label={i18n.address} value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
