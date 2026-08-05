@@ -37,11 +37,18 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   hint?: string
 }
 
-export function Input({ label, error, hint, className, ...props }: InputProps) {
+export function Input({ label, error, hint, className, type, onFocus, ...props }: InputProps) {
   return (
     <div className="space-y-1">
       {label && <label className="block text-xs text-stone-500 font-medium">{label}</label>}
       <input
+        type={type}
+        onFocus={(e) => {
+          // Number fields (amounts) select their existing text on focus, so the
+          // first keystroke replaces it instead of appending after a lingering '0'.
+          if (type === 'number') e.target.select()
+          onFocus?.(e)
+        }}
         className={cn(
           'w-full px-3 py-2 text-sm border rounded-lg bg-white text-stone-900 placeholder:text-stone-400',
           'focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent',

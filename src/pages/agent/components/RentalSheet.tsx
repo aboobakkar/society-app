@@ -158,6 +158,7 @@ export function RentalSheet({ open, onClose, onSuccess }: RentalSheetProps) {
                                 type='number'
                                 value={amount}
                                 onChange={(e) => setAmount(e.target.value)}
+                                onFocus={(e) => e.target.select()}
                                 inputMode='numeric'
                                 placeholder='0'
                                 className='w-full pl-8 pr-4 py-3.5 text-2xl font-bold text-stone-900 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500'

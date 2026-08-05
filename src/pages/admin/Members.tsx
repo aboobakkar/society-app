@@ -367,7 +367,7 @@ export default function MembersPage() {
                         <Input
                             label={i18n.monthlyAmount}
                             type='number'
-                            value={form.monthly_amount}
+                            value={form.monthly_amount || ''}
                             onChange={(e) =>
                                 f('monthly_amount', Number(e.target.value))
                             }
