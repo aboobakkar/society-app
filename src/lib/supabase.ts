@@ -15,3 +15,22 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storageKey: 'sb-auth-token',
   },
 })
+
+/**
+ * A throwaway Supabase client with no persisted/auto-refreshed session.
+ *
+ * auth.signUp() on a normal client replaces the *current* session with the
+ * newly created user's session. Anywhere an already-authenticated caller
+ * (e.g. an admin creating an agent account) needs to sign someone else up
+ * without losing their own session, run that signUp() call through a fresh
+ * instance from this helper instead of the shared `supabase` client.
+ */
+export function createEphemeralClient() {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
+  })
+}
