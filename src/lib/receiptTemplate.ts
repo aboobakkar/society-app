@@ -22,8 +22,8 @@ export function generateWhatsAppReceipt({
 
     return `*${societyName} - പേയ്‌മെന്റ് രസീത്* 🧾
 --------------------------------
-പ്രിയ *${member.name}* (${member.id}),
-നിങ്ങളുടെ വരിസംഖ്യ തുക വിജയകരമായി ലഭിച്ചിരിക്കുന്നു.
+പ്രിയ *${member.name_ml}* (${member.id}),
+നിങ്ങളുടെ വരിസംഖ്യ തുക ലഭിച്ചിരിക്കുന്നു.
 
 💵 അടച്ച തുക: *${formatCurrency(amount)}*
 ${paidMonthFormatted ? `🗓️ മാസം: *${paidMonthFormatted}*\n` : ''}📅 തീയതി: ${todayFormatted}
@@ -34,5 +34,5 @@ ${
         : '✅ കുടിശ്ശികകൾ ഒന്നുമില്ല'
 }
 --------------------------------
-നന്ദി! സൊസൈറ്റി കമ്മിറ്റി.`;
+നന്ദി! *${societyName} കമ്മിറ്റി.`;
 }
