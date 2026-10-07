@@ -5,10 +5,19 @@ import {
   getCollectionMonth,
   getMonthOptions,
   formatMonth,
+  formatDate,
 } from "@/lib/utils";
 import { recordPayment, useHoldingPersons } from "@/hooks/useAgent";
 import { useAuth } from "@/hooks/useAuth";
-import { CheckCircle, X, ChevronDown, Edit2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import {
+  CheckCircle,
+  X,
+  ChevronDown,
+  Edit2,
+  Share2,
+  Phone,
+} from "lucide-react";
 import { HoldingPersonPicker } from "@/components/HoldingPersonPicker";
 
 interface PaymentSheetProps {
@@ -33,6 +42,21 @@ const METHOD_LABELS: Record<Method, string> = {
   bank: "🏦 Bank Transfer",
 };
 
+// Checks whether the phone number is a valid 10-digit Indian mobile number
+function isValidIndianMobile(phone: string): boolean {
+  const cleaned = (phone || "").replace(/\D/g, "");
+  if (cleaned.length === 10) return true;
+  if (cleaned.length === 12 && cleaned.startsWith("91")) return true;
+  return false;
+}
+
+function cleanPhoneNumber(phone: string): string {
+  const cleaned = (phone || "").replace(/\D/g, "");
+  if (cleaned.length === 10) return `91${cleaned}`;
+  if (cleaned.length === 12 && cleaned.startsWith("91")) return cleaned;
+  return cleaned;
+}
+
 export function PaymentSheet({
   member,
   open,
@@ -56,6 +80,17 @@ export function PaymentSheet({
   const [saving, setSaving] = useState(false);
   const [showMonths, setShowMonths] = useState(false);
 
+  // State used for WhatsApp sharing
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastRecordedPayment, setLastRecordedPayment] = useState<{
+    amount: number;
+    method: string;
+  } | null>(null);
+  const [phonePromptOpen, setPhonePromptOpen] = useState(false);
+  const [newPhoneInput, setNewPhoneInput] = useState("");
+  const [updatingPhone, setUpdatingPhone] = useState(false);
+  const [currentMemberPhone, setCurrentMemberPhone] = useState("");
+
   const hasDues = !!(
     (member?.opening_balance || 0) > 0 && paymentType === "monthly"
   );
@@ -70,6 +105,9 @@ export function PaymentSheet({
       setPaymentType("monthly");
       setMethod("cash");
       setShowMonths(false);
+      setCurrentMemberPhone(member.mobile || "");
+      setShowSuccessModal(false);
+      setPhonePromptOpen(false);
     }
   }, [member]);
 
@@ -88,6 +126,96 @@ export function PaymentSheet({
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  // Creates and shares the payment receipt via WhatsApp
+  const triggerWhatsAppShare = (
+    phoneToSend: string,
+    paymentAmt: number,
+    paymentMethod: string,
+  ) => {
+    if (!member) return;
+    const formattedPhone = cleanPhoneNumber(phoneToSend);
+    const todayFormatted = formatDate(new Date().toISOString());
+
+    // Calculates the remaining dues if the member still has an outstanding balance
+    const remainingDues = Math.max(
+      0,
+      (member.opening_balance || 0) - paymentAmt,
+    );
+
+    const receiptMessage = `*മസ്ജിദുൽ ഹിദായ - പേയ്‌മെന്റ് രസീത്* 🧾
+--------------------------------
+Dear *${member.name}* (${member.id}),
+Your subscription payment has been received successfully.
+
+💵 Amount Paid: *${formatCurrency(paymentAmt)}*
+📅 Date: ${todayFormatted}
+💳 Method: ${paymentMethod.toUpperCase()}
+${remainingDues > 0 ? `📌 Remaining Dues: *${formatCurrency(remainingDues)}*` : "✅ No outstanding dues"}
+--------------------------------
+Thank you! Society Committee.`;
+
+    const waUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(receiptMessage)}`;
+    window.open(waUrl, "_blank");
+  };
+
+  // Handles the WhatsApp button click
+  const handleInitiateWhatsApp = () => {
+    if (!isValidIndianMobile(currentMemberPhone)) {
+      setNewPhoneInput(currentMemberPhone.replace(/\D/g, ""));
+      setPhonePromptOpen(true);
+    } else if (lastRecordedPayment) {
+      triggerWhatsAppShare(
+        currentMemberPhone,
+        lastRecordedPayment.amount,
+        lastRecordedPayment.method,
+      );
+    }
+  };
+
+  // Saves the new phone number and syncs it with the database
+  const handleSaveNewPhoneAndShare = async () => {
+    const cleaned = newPhoneInput.trim().replace(/\D/g, "");
+    if (cleaned.length !== 10) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    if (!member) return;
+
+    setUpdatingPhone(true);
+    try {
+      // Updates the phone number in the Supabase members table
+      const { error } = await supabase
+        .from("members")
+        .update({ mobile: cleaned, updated_at: new Date().toISOString() })
+        .eq("id", member.id);
+
+      if (error) throw error;
+
+      // Updates the local state
+      setCurrentMemberPhone(cleaned);
+      member.mobile = cleaned;
+      setPhonePromptOpen(false);
+
+      // Redirects to WhatsApp immediately
+      if (lastRecordedPayment) {
+        triggerWhatsAppShare(
+          cleaned,
+          lastRecordedPayment.amount,
+          lastRecordedPayment.method,
+        );
+      }
+    } catch (err: any) {
+      console.error("Error updating member phone:", err);
+      alert(
+        "ഫോൺ നമ്പർ അപ്ഡേറ്റ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു: " +
+          (err.message || ""),
+      );
+    } finally {
+      setUpdatingPhone(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!member || !user) return;
@@ -108,14 +236,15 @@ export function PaymentSheet({
         opening_balance: member.opening_balance,
         advance_balance: member.advance_balance,
         monthly_amount: member.monthly_amount,
-        // ഇവിടെ null fallback നൽകുക:
         due_from_month: member.due_from_month ?? null,
       },
     });
     setSaving(false);
+
     if (ok) {
+      setLastRecordedPayment({ amount: amt, method });
+      setShowSuccessModal(true);
       onSuccess();
-      handleClose();
     }
   };
 
@@ -126,6 +255,8 @@ export function PaymentSheet({
     setMethod("cash");
     setShowMonths(false);
     setEditing(false);
+    setShowSuccessModal(false);
+    setPhonePromptOpen(false);
     onClose();
   };
 
@@ -134,11 +265,6 @@ export function PaymentSheet({
     .reverse();
 
   if (!open || !member) return null;
-
-  const approxArrearMonths =
-    hasDues && member.monthly_amount > 0
-      ? Math.ceil(member.opening_balance / member.monthly_amount)
-      : 0;
 
   return (
     <>
@@ -152,12 +278,16 @@ export function PaymentSheet({
         <div className="flex items-center justify-between px-5 py-3 border-b border-stone-100">
           <div>
             <h2 className="text-base font-semibold text-stone-900">
-              {isReadOnly ? "Payment Details" : "Record Payment"}
+              {showSuccessModal
+                ? "Payment Receipt"
+                : isReadOnly
+                  ? "Payment Details"
+                  : "Record Payment"}
             </h2>
             <p className="text-xs text-stone-400 mt-0.5">{member.id}</p>
           </div>
           <div className="flex items-center gap-2">
-            {isReadOnly && (
+            {isReadOnly && !showSuccessModal && (
               <button
                 onClick={() => setEditing(true)}
                 className="flex items-center gap-1.5 text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg font-medium"
@@ -183,15 +313,49 @@ export function PaymentSheet({
             <div>
               <p className="font-semibold text-stone-900">{member.name}</p>
               <p className="text-xs text-stone-500">
-                {member.id} · {member.mobile}
+                {member.id} · {currentMemberPhone}
               </p>
               <p className="text-xs text-indigo-600 font-medium mt-0.5">
                 Monthly: {formatCurrency(member.monthly_amount)}
               </p>
             </div>
           </div>
-          // READ-ONLY view
-          {isReadOnly && existingPayment ? (
+
+          {/* പണം സേവ് ചെയ്തതിനു ശേഷമുള്ള SUCCESS & WHATSAPP CARD */}
+          {showSuccessModal && lastRecordedPayment ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center space-y-4">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle size={28} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-emerald-900">
+                  Payment recorded successfully!
+                </h3>
+                <p className="text-xs text-emerald-700 mt-1">
+                  തുക:{" "}
+                  <strong>{formatCurrency(lastRecordedPayment.amount)}</strong>{" "}
+                  ({lastRecordedPayment.method.toUpperCase()})
+                </p>
+              </div>
+
+              {/* വാട്സാപ്പ് ബട്ടൺ */}
+              <button
+                onClick={handleInitiateWhatsApp}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
+              >
+                <Share2 size={18} />
+                Send receipt via WhatsApp
+              </button>
+
+              <button
+                onClick={handleClose}
+                className="w-full py-2.5 bg-white border border-stone-200 text-stone-700 text-xs font-semibold rounded-xl hover:bg-stone-50"
+              >
+                Close
+              </button>
+            </div>
+          ) : isReadOnly && existingPayment ? (
+            /* Read-only view */
             <div className="space-y-3">
               <div className="bg-stone-50 rounded-2xl divide-y divide-stone-100">
                 {[
@@ -219,8 +383,6 @@ export function PaymentSheet({
                   </div>
                 ))}
               </div>
-
-              {/* പുതിയ പേയ്‌മെന്റ് അടയ്ക്കാനുള്ള ബട്ടൺ */}
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => setEditing(true)}
@@ -230,10 +392,7 @@ export function PaymentSheet({
                 </button>
                 <button
                   onClick={() => {
-                    // Reset to enter fresh payment
                     setEditing(false);
-                    // Pass empty existingPayment state to open fresh form
-                    window.location.hash = "";
                     setAmount(
                       String(
                         member.opening_balance > 0
@@ -259,14 +418,8 @@ export function PaymentSheet({
                 <div className="grid grid-cols-2 gap-2">
                   {(
                     [
-                      {
-                        value: "monthly",
-                        label: "🗓 Monthly Subscription",
-                      },
-                      {
-                        value: "imam_food",
-                        label: "🍽 Imam Food Allowance",
-                      },
+                      { value: "monthly", label: "🗓 Monthly Subscription" },
+                      { value: "imam_food", label: "🍽 Imam Food Allowance" },
                     ] as const
                   ).map((opt) => (
                     <button
@@ -329,15 +482,6 @@ export function PaymentSheet({
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs">
                   <p className="font-semibold text-amber-800 mb-1">
                     Arrears: {formatCurrency(member.opening_balance)}
-                    {member?.due_from_month && (
-                      <span className="font-normal text-amber-600">
-                        {" "}
-                        (since {formatMonth(member.due_from_month, "en")}
-                        {approxArrearMonths > 0 &&
-                          ` · ~${approxArrearMonths} month${approxArrearMonths > 1 ? "s" : ""}`}
-                        )
-                      </span>
-                    )}
                   </p>
                   <p className="text-amber-700">
                     Collections automatically credit the earliest dues. Any
@@ -366,71 +510,6 @@ export function PaymentSheet({
                   />
                 </div>
               </div>
-
-              {/* Dynamic Allocation Preview */}
-              {hasDues && parseFloat(amount) > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-xs">
-                  {(() => {
-                    const amt = parseFloat(amount);
-                    const rate = member.monthly_amount || 500;
-                    const totalDues = member.opening_balance;
-                    const excess = amt > totalDues ? amt - totalDues : 0;
-                    const reducedDues = Math.min(amt, totalDues);
-
-                    return (
-                      <>
-                        <p className="font-semibold text-blue-800 mb-1">
-                          How ₹{amt.toFixed(0)} will be applied:
-                        </p>
-                        <p className="text-blue-700">
-                          ✓ Reduces pending arrears by{" "}
-                          {formatCurrency(reducedDues)}
-                        </p>
-                        {excess > 0 && (
-                          <p className="text-green-700 font-medium mt-0.5">
-                            + {formatCurrency(excess)} saved as advance balance
-                            for future months
-                          </p>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Advance/Shortfall Preview for Regular Members */}
-              {!hasDues && member && parseFloat(amount) > 0 && (
-                <>
-                  {parseFloat(amount) > member.monthly_amount && (
-                    <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-xs">
-                      <p className="font-semibold text-green-800">
-                        {formatCurrency(
-                          parseFloat(amount) - member.monthly_amount,
-                        )}{" "}
-                        will be saved as advance credit
-                      </p>
-                      <p className="text-green-600 mt-0.5">
-                        Applied automatically to future dues
-                      </p>
-                    </div>
-                  )}
-                  {parseFloat(amount) < member.monthly_amount && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs">
-                      <p className="font-semibold text-amber-800">
-                        Partial Payment:{" "}
-                        {formatCurrency(
-                          member.monthly_amount - parseFloat(amount),
-                        )}{" "}
-                        remaining balance
-                      </p>
-                      <p className="text-amber-700 mt-0.5">
-                        The remaining balance will carry forward as an active
-                        due.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
 
               {/* Method */}
               <div>
@@ -508,12 +587,71 @@ export function PaymentSheet({
                   ? "Saving..."
                   : `Save ${amount ? formatCurrency(parseFloat(amount)) : ""}`}
               </button>
-
-              <div className="h-2" />
             </>
           )}
         </div>
       </div>
+
+      {/* (INVALID PHONE PROMPT) */}
+      {phonePromptOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+            <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+              <Phone size={20} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-stone-900">
+                Enter a valid WhatsApp number
+              </h3>
+              <p className="text-xs text-stone-500 mt-1 leading-relaxed">
+                The number currently registered for this member (
+                {currentMemberPhone || "None"}) is not a valid 10-digit number.
+                Enter the correct number to send the receipt. This number will
+                be saved to the database automatically.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-stone-600 mb-1.5">
+                10-Digit Mobile Number
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  maxLength={10}
+                  value={newPhoneInput}
+                  onChange={(e) =>
+                    setNewPhoneInput(e.target.value.replace(/\D/g, ""))
+                  }
+                  placeholder="9876543210"
+                  className="w-full pl-12 pr-3 py-2.5 text-base font-bold bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setPhonePromptOpen(false)}
+                className="flex-1 py-2.5 px-3 border border-stone-200 text-stone-600 text-xs font-semibold rounded-xl hover:bg-stone-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={updatingPhone || newPhoneInput.length !== 10}
+                onClick={handleSaveNewPhoneAndShare}
+                className="flex-1 py-2.5 px-3 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {updatingPhone ? "Saving..." : "Save & Send Receipt"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
