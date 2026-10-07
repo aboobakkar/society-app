@@ -1,105 +1,160 @@
-import { format, parseISO } from 'date-fns'
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { Member, Payment } from '@/types';
 
-// ============================================
-// Currency
-// ============================================
+/**
+ * Utility to merge Tailwind CSS classes safely without style conflicts
+ */
+export function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
+
+/**
+ * Format a number to Indian Rupee currency format (e.g. ₹500, ₹1,200)
+ */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount)
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+    }).format(amount || 0);
 }
 
-// ============================================
-// Month helpers
-// ============================================
-const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
-const MONTHS_ML = ['ജനുവരി','ഫെബ്രുവരി','മാർച്ച്','ഏപ്രിൽ','മേയ്','ജൂൺ','ജൂലൈ','ഓഗസ്റ്റ്','സെപ്തംബർ','ഒക്ടോബർ','നവംബർ','ഡിസംബർ']
-
-export function formatMonth(yearMonth: string, lang: 'en' | 'ml' = 'en'): string {
-  const [year, month] = yearMonth.split('-')
-  const idx = parseInt(month) - 1
-  const months = lang === 'ml' ? MONTHS_ML : MONTHS_EN
-  return `${months[idx]} ${year}`
-}
-
+/**
+ * Returns current month in 'YYYY-MM' format
+ */
 export function getCurrentMonth(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
 }
 
-// The society always collects the PREVIOUS month's subscription during the
-// current calendar month (e.g. in June, agents collect May's dues).
-// Use this — NOT getCurrentMonth() — anywhere that means "the month being
-// collected right now" (due lists, today's collection summary, payment
-// sheet default month, etc). Keep getCurrentMonth() for anything tied to
-// today's actual calendar date (joined_month default, report filters,
-// arrears month-counting, "no future months" pickers).
+/**
+ * Payments.month is traditionally scoped to the previous calendar month
+ * e.g., in October, the regular collection is for September.
+ */
 export function getCollectionMonth(): string {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth() // 0-indexed; getMonth()=0 is Jan, so this IS "previous month" in 1-indexed terms
-  if (m === 0) return `${y - 1}-12`
-  return `${y}-${String(m).padStart(2, '0')}`
+    const now = new Date();
+    now.setMonth(now.getMonth() - 1);
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
 }
 
-export function getMonthOptions(fromYear = 2023, toYear?: number): string[] {
-  const now = new Date()
-  // Never show future months by default
-  const endYear = toYear ?? now.getFullYear()
-  const endMonth = toYear ? 12 : now.getMonth() + 1
-  const options: string[] = []
-  for (let y = fromYear; y <= endYear; y++) {
-    const lastMonth = y === endYear ? endMonth : 12
-    for (let m = 1; m <= lastMonth; m++) {
-      options.push(`${y}-${String(m).padStart(2, '0')}`)
+/**
+ * Formats a YYYY-MM string to readable English or Malayalam month names
+ */
+export function formatMonth(monthStr: string, lang: 'en' | 'ml' = 'en'): string {
+    if (!monthStr || !monthStr.includes('-')) return monthStr;
+    const [year, month] = monthStr.split('-');
+    const monthIndex = parseInt(month, 10) - 1;
+
+    const enMonths = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const mlMonths = [
+        'ജനുവരി', 'ഫെബ്രുവരി', 'മാർച്ച്', 'ഏപ്രിൽ', 'മെയ്', 'ജൂൺ',
+        'ജൂലൈ', 'ഓഗസ്റ്റ്', 'സെപ്റ്റംബർ', 'ഒക്ടോബർ', 'നവംബർ', 'ഡിസംബർ'
+    ];
+
+    if (lang === 'ml') {
+        return `${mlMonths[monthIndex] || month} ${year}`;
     }
-  }
-  return options
+    return `${enMonths[monthIndex] || month} ${year}`;
 }
 
-export function getMonthsInYear(year: string): string[] {
-  return Array.from({ length: 12 }, (_, i) =>
-    `${year}-${String(i + 1).padStart(2, '0')}`
-  )
+/**
+ * Format ISO date or date string to readable format (e.g. 15 Oct 2026)
+ */
+export function formatDate(dateStr?: string | null): string {
+    if (!dateStr) return '—';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+    } catch {
+        return dateStr;
+    }
 }
 
-// Used by yearly payment-status grids (member portal, reports) to decide
-// whether a month is "due" yet. Compares against the COLLECTION month
-// (= previous calendar month), since the society always collects last
-// month's subscription during the current month — e.g. in June, May is
-// the latest month that should show red/green; June itself is still grey.
-export function isPastOrCurrentMonth(yearMonth: string): boolean {
-  const current = getCollectionMonth()
-  return yearMonth <= current
+/**
+ * Returns all 12 months for a given year in 'YYYY-MM' format (e.g. '2026-01', '2026-02', ...)
+ */
+export function getMonthsInYear(year: number | string): string[] {
+    const y = String(year);
+    return Array.from({ length: 12 }, (_, i) => {
+        const m = String(i + 1).padStart(2, '0');
+        return `${y}-${m}`;
+    });
 }
 
-export function formatDate(dateStr: string): string {
-  try {
-    return format(parseISO(dateStr), 'dd MMM yyyy')
-  } catch {
-    return dateStr
-  }
+/**
+ * Checks whether a given 'YYYY-MM' is either in the past or the current calendar month
+ */
+export function isPastOrCurrentMonth(monthStr: string): boolean {
+    if (!monthStr) return false;
+    const current = getCurrentMonth();
+    return monthStr <= current;
 }
 
-// ============================================
-// Member ID
-// ============================================
-export function formatMemberId(num: number): string {
-  return `SCY${String(num).padStart(3, '0')}`
+/**
+ * Generates an array of 'YYYY-MM' string options starting from startYear up to current year
+ */
+export function getMonthOptions(startYear = 2023): string[] {
+    const options: string[] = [];
+    const currentYear = new Date().getFullYear();
+    const currentMonthNum = new Date().getMonth() + 1;
+
+    for (let y = startYear; y <= currentYear; y++) {
+        const maxMonth = y === currentYear ? currentMonthNum : 12;
+        for (let m = 1; m <= maxMonth; m++) {
+            options.push(`${y}-${String(m).padStart(2, '0')}`);
+        }
+    }
+    return options;
 }
 
-// ============================================
-// Translations helper
-// ============================================
-export function t(en: string, ml: string, lang: 'en' | 'ml'): string {
-  return lang === 'ml' ? ml : en
-}
+/**
+ * Dynamic Ledger calculation for individual member:
+ * Balance = Opening Due + (Months Accrued * Monthly Amount) - Total Payments - Waived Amount
+ */
+export function calculateMemberBalance(member: Member, payments: Payment[]) {
+    const openingDue = Number(member.opening_due ?? member.opening_balance ?? 0);
+    const monthlyAmount = Number(member.monthly_amount || 0);
+    const waived = Number(member.waived_amount || 0);
 
-// ============================================
-// Class names helper (simple version)
-// ============================================
-export function cn(...classes: (string | undefined | null | false)[]): string {
-  return classes.filter(Boolean).join(' ')
+    const joinedDate = member.joined_date
+        ? new Date(member.joined_date)
+        : member.created_at
+        ? new Date(member.created_at)
+        : new Date();
+
+    const now = new Date();
+
+    // Months difference up to the previous completed month
+    const monthsAccrued = Math.max(
+        0,
+        (now.getFullYear() - joinedDate.getFullYear()) * 12 + (now.getMonth() - joinedDate.getMonth())
+    );
+
+    const totalExpected = openingDue + (monthsAccrued * monthlyAmount) - waived;
+
+    const totalPaid = payments
+        .filter((p) => p.member_id === member.id && (p.payment_type ?? 'monthly') === 'monthly')
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    const balance = totalExpected - totalPaid;
+
+    return {
+        totalExpected,
+        totalPaid,
+        currentDue: balance > 0 ? balance : 0,
+        advanceBalance: balance < 0 ? Math.abs(balance) : 0,
+    };
 }

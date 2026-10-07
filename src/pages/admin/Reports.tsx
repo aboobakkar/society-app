@@ -1,334 +1,333 @@
-import { useState, useEffect } from 'react';
-import { useMembers, useMonthlyReport } from '@/hooks/useData';
-import { useLang } from '@/hooks/useLang';
-import { supabase } from '@/lib/supabase';
-import { Payment } from '@/types';
-import { Card, PageHeader, StatCard, Spinner } from '@/components/ui';
+import { useState, useMemo } from "react";
+import { useMembers, usePayments, useExpenses } from "@/hooks/useData";
+import { useRentalIncome } from "@/hooks/useFeatures";
+import { PageHeader, Card, StatCard, Badge, Spinner } from "@/components/ui";
 import {
-    formatCurrency,
-    getMonthsInYear,
-    isPastOrCurrentMonth,
-} from '@/lib/utils';
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Legend,
-} from 'recharts';
+  formatCurrency,
+  formatMonth,
+  formatDate,
+  getMonthsInYear,
+} from "@/lib/utils";
+import { BarChart3, Users, Calendar, Download } from "lucide-react";
 
 export default function ReportsPage() {
-    const { i18n, lang } = useLang();
-    const currentYear = new Date().getFullYear().toString();
-    const [year, setYear] = useState(currentYear);
-    const { members, loading: membersLoading } = useMembers();
-    const { data: monthlyData, loading: reportLoading } =
-        useMonthlyReport(year);
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-    // Fetch all year payments directly — avoids usePayments() infinite loading bug
-    const [yearPayments, setYearPayments] = useState<Payment[]>([]);
-    const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const { members, loading: mLoading } = useMembers();
+  const { payments, loading: pLoading } = usePayments();
+  const { expenses, loading: eLoading } = useExpenses();
+  const { loading: rLoading } = useRentalIncome();
 
-    useEffect(() => {
-        setPaymentsLoading(true);
-        supabase
-            .from('payments')
-            .select('*')
-            .gte('month', `${year}-01`)
-            .lte('month', `${year}-12`)
-            .then(({ data }) => {
-                setYearPayments((data || []) as Payment[]);
-                setPaymentsLoading(false);
-            });
-    }, [year]);
+  const monthsInYear = useMemo(
+    () => getMonthsInYear(selectedYear),
+    [selectedYear],
+  );
 
-    const activeMembers = members.filter((m) => m.status === 'active');
-    const yearMonths = getMonthsInYear(year);
-    const pastMonths = yearMonths.filter(isPastOrCurrentMonth);
+  // Grouping by actual payment transaction date (YYYY-MM)
+  const monthlyStats = useMemo(() => {
+    return monthsInYear.map((monthKey) => {
+      const mPayments = payments.filter((p) => {
+        const date = p.payment_date || p.created_at?.split("T")[0];
+        return date && date.startsWith(monthKey);
+      });
 
-    const totalYearCollected = yearPayments.reduce((s, p) => s + p.amount, 0);
-    const totalYearExpenses = monthlyData.reduce((s, m) => s + m.expenses, 0);
+      const mExpenses = expenses.filter((e) => {
+        const date = e.expense_date || e.created_at?.split("T")[0];
+        return date && date.startsWith(monthKey);
+      });
 
-    const monthsShort = lang === 'ml' ? i18n.monthsShort : i18n.monthsShort;
+      const collected = mPayments.reduce(
+        (s, p) => s + Number(p.amount || 0),
+        0,
+      );
+      const expenseTotal = mExpenses.reduce(
+        (s, e) => s + Number(e.amount || 0),
+        0,
+      );
+      const paidMembersCount = new Set(mPayments.map((p) => p.member_id)).size;
 
-    const chartData = monthlyData.map((m, i) => ({
-        name: i18n.monthsShort[i],
-        [i18n.collected]: m.collected,
-        [i18n.expenses]: m.expenses,
-    }));
-
-    const memberStatus = activeMembers.map((m) => {
-        const paid = pastMonths.filter((month) =>
-            yearPayments.some(
-                (p) =>
-                    p.member_id === m.id &&
-                    p.month === month &&
-                    (p.payment_type === 'monthly' || !p.payment_type),
-            ),
-        );
-        const pending = pastMonths.filter(
-            (month) =>
-                !yearPayments.some(
-                    (p) =>
-                        p.member_id === m.id &&
-                        p.month === month &&
-                        (p.payment_type === 'monthly' || !p.payment_type),
-                ),
-        );
-        return {
-            ...m,
-            paid,
-            pending,
-            totalPaid: paid.length * m.monthly_amount,
-        };
+      return {
+        monthKey,
+        collected,
+        expenses: expenseTotal,
+        balance: collected - expenseTotal,
+        paidCount: paidMembersCount,
+        paymentCount: mPayments.length,
+      };
     });
+  }, [monthsInYear, payments, expenses]);
 
-    // no full-page spinner
+  // Yearly Aggregates
+  const yearCollected = monthlyStats.reduce((s, m) => s + m.collected, 0);
+  const yearExpenses = monthlyStats.reduce((s, m) => s + m.expenses, 0);
+  const netBalance = yearCollected - yearExpenses;
+  const avgMonthly = Math.round(yearCollected / 12);
 
-    return (
-        <div>
-            <PageHeader
-                title={i18n.reports}
-                action={
-                    <select
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        className='px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500'
-                    >
-                        {['2023', '2024', '2025', '2026'].map((y) => (
-                            <option key={y} value={y}>
-                                {y}
-                            </option>
-                        ))}
-                    </select>
-                }
-            />
+  const activeMembers = members.filter((m) => m.status === "active");
+  const loading = mLoading || pLoading || eLoading || rLoading;
 
-            {/* Year summary */}
-            <div className='grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6'>
-                <StatCard
-                    label={i18n.yearCollected}
-                    value={formatCurrency(totalYearCollected)}
-                    valueClass='text-green-700'
-                />
-                <StatCard
-                    label={i18n.yearExpenses}
-                    value={formatCurrency(totalYearExpenses)}
-                    valueClass='text-red-700'
-                />
-                <StatCard
-                    label={i18n.netBalance}
-                    value={formatCurrency(
-                        totalYearCollected - totalYearExpenses,
-                    )}
-                    valueClass={
-                        totalYearCollected - totalYearExpenses >= 0
-                            ? 'text-green-700'
-                            : 'text-red-700'
-                    }
-                />
-                <StatCard
-                    label={i18n.avgMonthlyCollection}
-                    value={formatCurrency(
-                        Math.round(
-                            totalYearCollected / Math.max(pastMonths.length, 1),
-                        ),
-                    )}
-                    valueClass='text-stone-700'
-                />
-            </div>
+  // Export Simple CSV
+  const exportCSV = () => {
+    const headerText =
+      "Member ID,Name,Mobile,Monthly Due,Current Arrears,Advance,Year Total Paid\n";
+    const rowsText = activeMembers
+      .map((m) => {
+        const memberTotalPaid = payments
+          .filter((p) => {
+            const date = p.payment_date || p.created_at?.split("T")[0];
+            return (
+              p.member_id === m.id && date?.startsWith(String(selectedYear))
+            );
+          })
+          .reduce((s, p) => s + Number(p.amount || 0), 0);
 
-            {/* Bar Chart */}
-            <Card className='mb-6'>
-                <h2 className='text-sm font-semibold text-stone-800 mb-4'>
-                    {i18n.monthlyCollectionVsExpenses}
-                </h2>
-                <ResponsiveContainer width='100%' height={240}>
-                    <BarChart
-                        data={chartData}
-                        margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-                    >
-                        <CartesianGrid strokeDasharray='3 3' stroke='#f0ede8' />
-                        <XAxis
-                            dataKey='name'
-                            tick={{ fontSize: 11, fill: '#78716c' }}
-                        />
-                        <YAxis
-                            tick={{ fontSize: 11, fill: '#78716c' }}
-                            tickFormatter={(v) =>
-                                `₹${v >= 1000 ? `${v / 1000}k` : v}`
-                            }
-                        />
-                        <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                        <Legend wrapperStyle={{ fontSize: 12 }} />
-                        <Bar
-                            dataKey={i18n.collected}
-                            fill='#15803d'
-                            radius={[3, 3, 0, 0]}
-                        />
-                        <Bar
-                            dataKey={i18n.expenses}
-                            fill='#dc2626'
-                            radius={[3, 3, 0, 0]}
-                        />
-                    </BarChart>
-                </ResponsiveContainer>
-            </Card>
+        return `"${m.id}","${m.name}","${m.mobile}",${m.monthly_amount},${m.opening_balance || 0},${m.advance_balance || 0},${memberTotalPaid}`;
+      })
+      .join("\n");
 
-            {/* Monthly Summary Table */}
-            <Card className='mb-6' padding={false}>
-                <div className='px-5 py-3 border-b border-stone-200'>
-                    <h2 className='text-sm font-semibold text-stone-800'>
-                        {i18n.monthlySummary} {year}
-                    </h2>
-                </div>
-                <div className='overflow-x-auto'>
-                    <table className='w-full text-sm'>
-                        <thead>
-                            <tr className='bg-stone-50 border-b border-stone-200'>
-                                {[
-                                    i18n.month,
-                                    i18n.collected,
-                                    i18n.expenses,
-                                    i18n.balance,
-                                    i18n.paid,
-                                    i18n.pending,
-                                ].map((h) => (
-                                    <th
-                                        key={h}
-                                        className='px-4 py-2.5 text-left text-xs font-medium text-stone-500'
-                                    >
-                                        {h}
-                                    </th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className='divide-y divide-stone-100'>
-                            {monthlyData.map((row, i) => {
-                                if (
-                                    !isPastOrCurrentMonth(yearMonths[i]) &&
-                                    row.collected === 0 &&
-                                    row.expenses === 0
-                                )
-                                    return null;
-                                const pendingCount =
-                                    activeMembers.length - row.paidCount;
-                                return (
-                                    <tr
-                                        key={row.month}
-                                        className='hover:bg-stone-50'
-                                    >
-                                        <td className='px-4 py-2.5 font-medium text-stone-800'>
-                                            {i18n.monthsShort[i]} {year}
-                                        </td>
-                                        <td className='px-4 py-2.5 text-green-700 font-medium'>
-                                            {formatCurrency(row.collected)}
-                                        </td>
-                                        <td className='px-4 py-2.5 text-red-600'>
-                                            {formatCurrency(row.expenses)}
-                                        </td>
-                                        <td
-                                            className={`px-4 py-2.5 font-semibold ${row.balance >= 0 ? 'text-green-700' : 'text-red-600'}`}
-                                        >
-                                            {formatCurrency(row.balance)}
-                                        </td>
-                                        <td className='px-4 py-2.5 text-green-700'>
-                                            {row.paidCount}
-                                        </td>
-                                        <td className='px-4 py-2.5'>
-                                            {pendingCount > 0 ? (
-                                                <span className='text-amber-700 font-medium'>
-                                                    {pendingCount}
-                                                </span>
-                                            ) : (
-                                                <span className='text-green-700'>
-                                                    ✓
-                                                </span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+    const blob = new Blob([headerText + rowsText], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Society_Report_${selectedYear}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
-            {/* Member payment grid */}
-            <Card padding={false}>
-                <div className='px-5 py-3 border-b border-stone-200'>
-                    <h2 className='text-sm font-semibold text-stone-800'>
-                        {i18n.memberWiseStatus} {year}
-                    </h2>
-                    <p className='text-xs text-stone-400 mt-0.5'>
-                        {i18n.paidLegend}
-                    </p>
-                </div>
-                <div className='overflow-x-auto'>
-                    <table className='w-full text-xs'>
-                        <thead>
-                            <tr className='bg-stone-50 border-b border-stone-200'>
-                                <th className='px-4 py-2.5 text-left font-medium text-stone-500 sticky left-0 bg-stone-50 min-w-36'>
-                                    {i18n.members}
-                                </th>
-                                {pastMonths.map((m, i) => {
-                                    const idx = parseInt(m.split('-')[1]) - 1;
-                                    return (
-                                        <th
-                                            key={m}
-                                            className='px-1.5 py-2.5 text-center font-medium text-stone-500 min-w-8'
-                                        >
-                                            {i18n.monthsShort[idx]}
-                                        </th>
-                                    );
-                                })}
-                                <th className='px-4 py-2.5 text-right font-medium text-stone-500'>
-                                    {i18n.totalPaid}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className='divide-y divide-stone-100'>
-                            {memberStatus.map((m) => (
-                                <tr key={m.id} className='hover:bg-stone-50'>
-                                    <td className='px-4 py-2.5 sticky left-0 bg-white'>
-                                        <p className='font-medium text-stone-800'>
-                                            {lang === 'ml'
-                                                ? m.name_ml || m.name
-                                                : m.name}
-                                        </p>
-                                        <p className='text-stone-400'>{m.id}</p>
-                                    </td>
-                                    {pastMonths.map((month) => {
-                                        const paid = m.paid.includes(month);
-                                        return (
-                                            <td
-                                                key={month}
-                                                className='px-1.5 py-2.5 text-center'
-                                            >
-                                                <span
-                                                    className={
-                                                        paid
-                                                            ? 'text-green-600'
-                                                            : 'text-red-400'
-                                                    }
-                                                >
-                                                    {paid ? '✓' : '✗'}
-                                                </span>
-                                            </td>
-                                        );
-                                    })}
-                                    <td className='px-4 py-2.5 text-right font-semibold text-green-700'>
-                                        {formatCurrency(m.totalPaid)}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </Card>
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Financial Reports"
+        subtitle="Annual performance, monthly ledger & member dues analysis"
+        action={
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              {[
+                currentYear - 2,
+                currentYear - 1,
+                currentYear,
+                currentYear + 1,
+              ].map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-white border border-stone-200 rounded-lg hover:bg-stone-50 font-medium text-stone-700"
+            >
+              <Download size={14} /> Export CSV
+            </button>
+          </div>
+        }
+      />
+
+      {/* Annual Overview Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard
+          label="Year Collected"
+          value={loading ? "..." : formatCurrency(yearCollected)}
+          sub={`across all active collections`}
+          valueClass="text-emerald-700"
+        />
+        <StatCard
+          label="Year Expenses"
+          value={loading ? "..." : formatCurrency(yearExpenses)}
+          sub="total outgoing"
+          valueClass="text-red-700"
+        />
+        <StatCard
+          label="Net Balance"
+          value={loading ? "..." : formatCurrency(netBalance)}
+          sub={netBalance >= 0 ? "Surplus" : "Deficit"}
+          valueClass={netBalance >= 0 ? "text-green-700" : "text-red-700"}
+        />
+        <StatCard
+          label="Avg Monthly Collection"
+          value={loading ? "..." : formatCurrency(avgMonthly)}
+          sub="monthly average"
+          valueClass="text-stone-800"
+        />
+      </div>
+
+      {/* Monthly Financial Breakdown */}
+      <Card padding={false}>
+        <div className="px-5 py-3.5 border-b border-stone-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-amber-600" />
+            <h2 className="text-sm font-semibold text-stone-800">
+              Monthly Summary ({selectedYear})
+            </h2>
+          </div>
+          <span className="text-xs text-stone-400">
+            Based on transaction dates
+          </span>
         </div>
-    );
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-stone-50 border-b border-stone-200 text-xs font-medium text-stone-500">
+              <tr>
+                <th className="px-4 py-3 text-left">Month</th>
+                <th className="px-4 py-3 text-left">Collected</th>
+                <th className="px-4 py-3 text-left">Expenses</th>
+                <th className="px-4 py-3 text-left">Balance</th>
+                <th className="px-4 py-3 text-left">Members Paid</th>
+                <th className="px-4 py-3 text-left">Total Receipts</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {monthlyStats.map((row) => (
+                <tr
+                  key={row.monthKey}
+                  className="hover:bg-stone-50 transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium text-stone-800">
+                    {formatMonth(row.monthKey, "en")}
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-emerald-700">
+                    {formatCurrency(row.collected)}
+                  </td>
+                  <td className="px-4 py-3 text-red-600">
+                    {formatCurrency(row.expenses)}
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    <span
+                      className={
+                        row.balance >= 0 ? "text-green-700" : "text-red-700"
+                      }
+                    >
+                      {formatCurrency(row.balance)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-stone-600">
+                    {row.paidCount} / {activeMembers.length}
+                  </td>
+                  <td className="px-4 py-3 text-stone-500">
+                    {row.paymentCount}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Comprehensive Member-wise Ledger */}
+      <Card padding={false}>
+        <div className="px-5 py-3.5 border-b border-stone-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users size={16} className="text-indigo-600" />
+            <h2 className="text-sm font-semibold text-stone-800">
+              Member Ledger & Status ({selectedYear})
+            </h2>
+          </div>
+          <span className="text-xs text-stone-500">
+            Shows live active arrears & paid amounts
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-stone-50 border-b border-stone-200 text-stone-500">
+              <tr>
+                <th className="px-3 py-3 text-left">Member</th>
+                <th className="px-3 py-3 text-left">Rate</th>
+                <th className="px-3 py-3 text-left">Outstanding Arrears</th>
+                {monthsInYear.map((m) => (
+                  <th key={m} className="px-2 py-3 text-center">
+                    {formatMonth(m, "en").slice(0, 3)}
+                  </th>
+                ))}
+                <th className="px-3 py-3 text-right">Total Paid</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {activeMembers.map((m) => {
+                // All payments of this member in the selected year
+                const memberPayments = payments.filter((p) => {
+                  const date = p.payment_date || p.created_at?.split("T")[0];
+                  return (
+                    p.member_id === m.id &&
+                    date?.startsWith(String(selectedYear))
+                  );
+                });
+
+                const memberTotalPaid = memberPayments.reduce(
+                  (s, p) => s + Number(p.amount || 0),
+                  0,
+                );
+
+                return (
+                  <tr
+                    key={m.id}
+                    className="hover:bg-stone-50 transition-colors"
+                  >
+                    <td className="px-3 py-2.5 font-medium text-stone-900">
+                      <div>{m.name}</div>
+                      <div className="text-[10px] text-stone-400 font-mono">
+                        {m.id}
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 text-stone-600 font-medium">
+                      {formatCurrency(m.monthly_amount)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {m.opening_balance > 0 ? (
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                          Due: {formatCurrency(m.opening_balance)}
+                        </span>
+                      ) : (m.advance_balance || 0) > 0 ? (
+                        <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-green-50 text-green-700 border border-green-200">
+                          Adv: +{formatCurrency(m.advance_balance)}
+                        </span>
+                      ) : (
+                        <span className="text-stone-400 font-medium">Nil</span>
+                      )}
+                    </td>
+
+                    {/* Month-wise Paid Status */}
+                    {monthsInYear.map((monthKey) => {
+                      const monthPaid = memberPayments
+                        .filter((p) => {
+                          const date =
+                            p.payment_date || p.created_at?.split("T")[0];
+                          return date?.startsWith(monthKey);
+                        })
+                        .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+                      return (
+                        <td key={monthKey} className="px-2 py-2.5 text-center">
+                          {monthPaid > 0 ? (
+                            <span
+                              title={`Paid: ₹${monthPaid}`}
+                              className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800"
+                            >
+                              ₹{monthPaid}
+                            </span>
+                          ) : (
+                            <span className="text-stone-300">—</span>
+                          )}
+                        </td>
+                      );
+                    })}
+
+                    <td className="px-3 py-2.5 text-right font-bold text-emerald-700 text-sm">
+                      {formatCurrency(memberTotalPaid)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+  );
 }

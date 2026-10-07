@@ -1,141 +1,166 @@
-import { useState, useMemo } from 'react'
-import { useDueMembers } from '@/hooks/useAgent'
-import { Member } from '@/types'
-import { formatCurrency, getCollectionMonth, formatMonth } from '@/lib/utils'
-import { PaymentSheet } from '../components/PaymentSheet'
-import { Search, AlertCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { useState, useMemo } from "react";
+import { useMembers, usePayments } from "@/hooks/useData";
+import { Member } from "@/types";
+import { formatCurrency } from "@/lib/utils";
+import { PaymentSheet } from "../components/PaymentSheet";
+import { AlertCircle, ChevronRight, Search } from "lucide-react";
 
 export function DueTab() {
-  const currentMonth = getCollectionMonth()
-  const { members, loading, refetch } = useDueMembers(currentMonth)
-  const [query, setQuery] = useState('')
-  const [sheetMember, setSheetMember] = useState<Member | null>(null)
-  const [paidNow, setPaidNow] = useState<Set<string>>(new Set())
+  const { members, loading: mLoading } = useMembers();
+  const { payments } = usePayments();
+  const [search, setSearch] = useState("");
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
+  // Filter active members who actually have pending dues (opening_balance > 0)
+  // and sort them with HIGHEST DUE FIRST
+  const dueMembers = useMemo(() => {
+    return members
+      .filter(
+        (m) => m.status === "active" && Number(m.opening_balance || 0) > 0,
+      )
+      .sort(
+        (a, b) =>
+          Number(b.opening_balance || 0) - Number(a.opening_balance || 0),
+      );
+  }, [members]);
+
+  // Search filtering
   const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim()
-    if (!q) return members
-    return members.filter(m =>
-      m.name.toLowerCase().includes(q) ||
-      m.id.toLowerCase().includes(q) ||
-      m.mobile.includes(q)
-    )
-  }, [members, query])
+    const q = search.trim().toLowerCase();
+    if (!q) return dueMembers;
+    return dueMembers.filter(
+      (m) =>
+        m.name.toLowerCase().includes(q) ||
+        (m.name_ml || "").includes(q) ||
+        m.mobile.includes(q) ||
+        m.id.toLowerCase().includes(q),
+    );
+  }, [dueMembers, search]);
 
-  const handleSuccess = (memberId: string) => {
-    setPaidNow(prev => new Set(prev).add(memberId))
-    refetch()
-  }
+  const totalOutstanding = useMemo(() => {
+    return dueMembers.reduce(
+      (sum, m) => sum + Number(m.opening_balance || 0),
+      0,
+    );
+  }, [dueMembers]);
+
+  const handleSelect = (member: Member) => {
+    setSelectedMember(member);
+    setSheetOpen(true);
+  };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Sticky header with search */}
-      <div className="bg-white border-b border-stone-100 px-4 py-3 space-y-3">
-        {/* Month badge */}
-        <div className="flex items-center justify-between">
+    <div className="p-4 space-y-4 max-w-lg mx-auto pb-24">
+      {/* Header Banner */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <AlertCircle size={15} className="text-amber-500" />
-            <span className="text-sm font-semibold text-stone-700">
-              Due for {formatMonth(currentMonth, 'en')}
-            </span>
+            <AlertCircle className="text-amber-600" size={18} />
+            <h2 className="text-sm font-bold text-amber-900">
+              Outstanding Member Dues
+            </h2>
           </div>
-          {!loading && (
-            <span className="text-xs bg-red-50 text-red-600 font-semibold px-2.5 py-1 rounded-full border border-red-100">
-              {members.length} pending
-            </span>
-          )}
+          <span className="text-xs font-semibold bg-amber-200/60 text-amber-800 px-2 py-0.5 rounded-full">
+            {dueMembers.length} pending
+          </span>
         </div>
-
-        {/* Search */}
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
-          <input
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Name, ID or mobile..."
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+        <p className="text-xs text-amber-700 mt-1">
+          Sorted by highest pending dues first
+        </p>
+        <div className="mt-3 pt-2 border-t border-amber-200/60 flex justify-between items-center text-xs">
+          <span className="text-amber-800 font-medium">
+            Total Dues to Collect:
+          </span>
+          <span className="text-base font-bold text-amber-900">
+            {formatCurrency(totalOutstanding)}
+          </span>
         </div>
       </div>
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto pb-28">
-        {loading ? (
-          <div className="p-4 space-y-3">
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="h-20 bg-stone-100 rounded-2xl animate-pulse" />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
-            <CheckCircle2 size={48} className="text-emerald-300 mb-4" />
-            <p className="text-stone-600 font-semibold">
-              {query ? 'No members match your search' : 'All members have paid!'}
-            </p>
-            <p className="text-stone-400 text-xs mt-1">
-              {query ? 'Try a different name or ID' : `All dues for ${formatMonth(currentMonth, 'en')} are cleared`}
-            </p>
-          </div>
-        ) : (
-          <div className="p-4 space-y-2">
-            {filtered.map(member => {
-              const justPaid = paidNow.has(member.id)
-              return (
-                <button
-                  key={member.id}
-                  onClick={() => !justPaid && setSheetMember(member)}
-                  disabled={justPaid}
-                  className={`w-full flex items-center gap-3 rounded-2xl p-4 text-left transition-all active:scale-[0.98]
-                    ${justPaid
-                      ? 'bg-emerald-50 border border-emerald-200 opacity-70 cursor-default'
-                      : 'bg-white border border-stone-200 hover:border-indigo-200 hover:shadow-sm'
-                    }`}
-                >
-                  {/* Avatar */}
-                  <div className={`w-11 h-11 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0
-                    ${justPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-50 text-red-500'}`}>
-                    {justPaid ? '✓' : member.name[0].toUpperCase()}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-stone-900 truncate">{member.name}</p>
-                    <p className="text-xs text-stone-400">{member.id} · {member.mobile}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-xs text-amber-700 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
-                        {formatCurrency(member.monthly_amount)} due
-                      </span>
-                      {member.opening_balance > 0 && (
-                        <span className="text-xs text-red-600 font-medium bg-red-50 px-2 py-0.5 rounded-full">
-                          +{formatCurrency(member.opening_balance)} arrears
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {justPaid ? (
-                    <span className="text-xs text-emerald-600 font-semibold flex-shrink-0">Paid ✓</span>
-                  ) : (
-                    <ChevronRight size={16} className="text-stone-300 flex-shrink-0" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
+      {/* Search Box */}
+      <div className="relative">
+        <Search
+          size={16}
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400"
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search due members by name, ID..."
+          className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
       </div>
 
-      <PaymentSheet
-        member={sheetMember}
-        open={!!sheetMember}
-        defaultMonth={currentMonth}
-        onClose={() => setSheetMember(null)}
-        onSuccess={() => {
-          if (sheetMember) handleSuccess(sheetMember.id)
-          setSheetMember(null)
-        }}
-      />
+      {/* Due Members List */}
+      {mLoading ? (
+        <div className="text-center py-10 text-xs text-stone-400">
+          Loading dues...
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-2xl p-8 text-center border border-stone-100">
+          <p className="text-stone-400 text-sm">
+            {search
+              ? "No matching due members"
+              : "🎉 No pending dues recorded!"}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {filtered.map((m) => (
+            <div
+              key={m.id}
+              onClick={() => handleSelect(m)}
+              className="bg-white p-3.5 rounded-2xl border border-stone-200/70 hover:border-amber-300 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 font-bold text-sm flex items-center justify-center flex-shrink-0">
+                  {m.name[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-stone-900 leading-tight">
+                    {m.name}
+                  </h3>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    {m.id} · {m.mobile}
+                  </p>
+                  <span className="inline-block mt-1 text-[10px] font-medium text-stone-500 bg-stone-100 px-1.5 py-0.2 rounded">
+                    Rate: ₹{m.monthly_amount}/mo
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <span className="inline-block text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-lg">
+                    {formatCurrency(m.opening_balance)} due
+                  </span>
+                </div>
+                <ChevronRight size={16} className="text-stone-400" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Payment Sheet */}
+      {selectedMember && (
+        <PaymentSheet
+          member={selectedMember}
+          open={sheetOpen}
+          onClose={() => {
+            setSheetOpen(false);
+            setSelectedMember(null);
+          }}
+          onSuccess={() => {
+            setSheetOpen(false);
+            setSelectedMember(null);
+          }}
+        />
+      )}
     </div>
-  )
+  );
 }
+
+export default DueTab;
