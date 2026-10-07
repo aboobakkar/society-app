@@ -1,215 +1,224 @@
-import { useState } from 'react';
-import { useAgentSummary, useDailyCollection } from '@/hooks/useFeatures';
-import { PageHeader, Card, StatCard, Spinner } from '@/components/ui';
+import { useState } from "react";
+import { useAgentSummary, useDailyCollection } from "@/hooks/useFeatures";
+import { PageHeader, Card, StatCard, Spinner } from "@/components/ui";
 import {
-    formatCurrency,
-    getCollectionMonth,
-    getMonthOptions,
-    formatDate,
-} from '@/lib/utils';
-import { Users, Calendar } from 'lucide-react';
+  formatCurrency,
+  getCurrentMonth,
+  getMonthOptions,
+  formatDate,
+} from "@/lib/utils";
+import { Users, Calendar } from "lucide-react";
+
+interface AgentSummaryItem {
+  recorded_by?: string;
+  agent_name?: string;
+  agent_email?: string;
+  total_amount: number;
+  payment_count: number;
+  cash_count?: number;
+  online_count?: number;
+  bank_count?: number;
+}
+
+interface DailyCollectionItem {
+  day: string;
+  payment_count: number;
+  cash_amount: number;
+  online_amount: number;
+  total_amount: number;
+}
 
 export default function AgentCollectionsPage() {
-    const [selectedMonth, setSelectedMonth] = useState(getCollectionMonth());
-    const { byAgent, loading: agentLoading } = useAgentSummary(selectedMonth);
-    const { data: dailyData, loading: dailyLoading } =
-        useDailyCollection(selectedMonth);
-    const currentMonth2 = getCollectionMonth();
-    const monthOptions = getMonthOptions(2023).filter(
-        (m) => m <= currentMonth2,
-    );
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
-    const totalByAgents = byAgent.reduce((s, a) => s + a.total_amount, 0);
-    return (
-        <div>
-            <PageHeader
-                title='Agent Collections'
-                subtitle='Per-agent and day-wise breakdown'
-                action={
-                    <select
-                        value={selectedMonth}
-                        onChange={(e) => setSelectedMonth(e.target.value)}
-                        className='px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500'
-                    >
-                        {monthOptions
-                            .slice()
-                            .reverse()
-                            .map((m) => (
-                                <option key={m} value={m}>
-                                    {m}
-                                </option>
-                            ))}
-                    </select>
-                }
-            />
+  // Typecast hook returns to ensure strict typing
+  const { byAgent: rawAgent, loading: agentLoading } =
+    useAgentSummary(selectedMonth);
+  const { data: rawDaily, loading: dailyLoading } =
+    useDailyCollection(selectedMonth);
 
-            {/* Summary stats */}
-            <div className='grid grid-cols-2 gap-3 mb-6'>
-                <StatCard
-                    label='Total Collected'
-                    value={agentLoading ? '...' : formatCurrency(totalByAgents)}
-                    sub={`by ${byAgent.length} agent${byAgent.length !== 1 ? 's' : ''}`}
-                    valueClass='text-green-700'
-                />
-                <StatCard
-                    label='Payment Count'
-                    value={
-                        agentLoading
-                            ? '...'
-                            : byAgent.reduce((s, a) => s + a.payment_count, 0)
-                    }
-                    sub='member payments'
-                    valueClass='text-stone-700'
-                />
+  const byAgent = (rawAgent || []) as AgentSummaryItem[];
+  const dailyData = (rawDaily || []) as DailyCollectionItem[];
+
+  const thisCalendarMonth = getCurrentMonth();
+  const monthOptions = getMonthOptions(2023).filter(
+    (m) => m <= thisCalendarMonth,
+  );
+
+  // Safely reduce numeric total
+  const totalByAgents: number = byAgent.reduce(
+    (s: number, a: AgentSummaryItem) => s + Number(a.total_amount || 0),
+    0,
+  );
+
+  const totalPaymentCount: number = byAgent.reduce(
+    (s: number, a: AgentSummaryItem) => s + Number(a.payment_count || 0),
+    0,
+  );
+
+  return (
+    <div>
+      <PageHeader
+        title="Agent Collections"
+        subtitle="Per-agent and day-wise breakdown"
+        action={
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-3 py-2 text-sm border border-stone-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            {monthOptions
+              .slice()
+              .reverse()
+              .map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+          </select>
+        }
+      />
+
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <StatCard
+          label="Total Collected"
+          value={agentLoading ? "..." : formatCurrency(totalByAgents)}
+          sub={`by ${byAgent.length} agent${byAgent.length !== 1 ? "s" : ""}`}
+          valueClass="text-green-700"
+        />
+        <StatCard
+          label="Payment Count"
+          value={agentLoading ? "..." : totalPaymentCount}
+          sub="member payments"
+          valueClass="text-stone-700"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* ── Agent-wise Summary ── */}
+        <Card padding={false}>
+          <div className="px-5 py-3 border-b border-stone-200 flex items-center gap-2">
+            <Users size={15} className="text-indigo-500" />
+            <h2 className="text-sm font-semibold text-stone-800">By Agent</h2>
+          </div>
+          {agentLoading ? (
+            <div className="p-5">
+              <Spinner />
             </div>
-
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-5'>
-                {/* ── Agent-wise Summary ── */}
-                <Card padding={false}>
-                    <div className='px-5 py-3 border-b border-stone-200 flex items-center gap-2'>
-                        <Users size={15} className='text-indigo-500' />
-                        <h2 className='text-sm font-semibold text-stone-800'>
-                            By Agent
-                        </h2>
-                    </div>
-                    {agentLoading ? (
-                        <div className='p-5'>
-                            <Spinner />
-                        </div>
-                    ) : byAgent.length === 0 ? (
-                        <p className='text-sm text-stone-400 p-5 text-center'>
-                            No agent collections this month
+          ) : byAgent.length === 0 ? (
+            <p className="text-sm text-stone-400 p-5 text-center">
+              No agent collections this month
+            </p>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {byAgent.map((agent: AgentSummaryItem, i: number) => (
+                <div key={agent.recorded_by || i} className="px-5 py-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
+                        {(agent.agent_name ||
+                          agent.agent_email ||
+                          "?")[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-stone-900">
+                          {agent.agent_name ||
+                            agent.agent_email ||
+                            "Unknown Agent"}
                         </p>
-                    ) : (
-                        <div className='divide-y divide-stone-100'>
-                            {byAgent.map((agent, i) => (
-                                <div
-                                    key={agent.recorded_by || i}
-                                    className='px-5 py-4'
-                                >
-                                    <div className='flex items-start justify-between mb-2'>
-                                        <div className='flex items-center gap-2.5'>
-                                            <div className='w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0'>
-                                                {(agent.agent_name ||
-                                                    agent.agent_email ||
-                                                    '?')[0].toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <p className='text-sm font-semibold text-stone-900'>
-                                                    {agent.agent_name ||
-                                                        agent.agent_email ||
-                                                        'Unknown Agent'}
-                                                </p>
-                                                <p className='text-xs text-stone-400'>
-                                                    {agent.payment_count}{' '}
-                                                    payments
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <p className='text-sm font-bold text-green-700'>
-                                            {formatCurrency(agent.total_amount)}
-                                        </p>
-                                    </div>
-                                    {/* Method breakdown */}
-                                    <div className='flex gap-2 flex-wrap'>
-                                        {agent.cash_count > 0 && (
-                                            <span className='text-xs bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full'>
-                                                Cash: {agent.cash_count}
-                                            </span>
-                                        )}
-                                        {agent.online_count > 0 && (
-                                            <span className='text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full'>
-                                                Online: {agent.online_count}
-                                            </span>
-                                        )}
-                                        {agent.bank_count > 0 && (
-                                            <span className='text-xs bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 rounded-full'>
-                                                Bank: {agent.bank_count}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </Card>
-
-                {/* ── Day-wise Summary ── */}
-                <Card padding={false}>
-                    <div className='px-5 py-3 border-b border-stone-200 flex items-center gap-2'>
-                        <Calendar size={15} className='text-green-600' />
-                        <h2 className='text-sm font-semibold text-stone-800'>
-                            Day-wise
-                        </h2>
-                    </div>
-                    {dailyLoading ? (
-                        <div className='p-5'>
-                            <Spinner />
-                        </div>
-                    ) : dailyData.length === 0 ? (
-                        <p className='text-sm text-stone-400 p-5 text-center'>
-                            No collections this month
+                        <p className="text-xs text-stone-400">
+                          {agent.payment_count} payments
                         </p>
-                    ) : (
-                        <div className='overflow-y-auto max-h-96'>
-                            <table className='w-full text-sm'>
-                                <thead className='sticky top-0 bg-stone-50 border-b border-stone-200'>
-                                    <tr>
-                                        {[
-                                            'Date',
-                                            'Count',
-                                            'Cash',
-                                            'Online',
-                                            'Total',
-                                        ].map((h) => (
-                                            <th
-                                                key={h}
-                                                className='px-4 py-2.5 text-left text-xs font-medium text-stone-500'
-                                            >
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className='divide-y divide-stone-100'>
-                                    {dailyData.map((row) => (
-                                        <tr
-                                            key={row.day}
-                                            className='hover:bg-stone-50'
-                                        >
-                                            <td className='px-4 py-2.5 text-stone-700 text-xs font-medium'>
-                                                {formatDate(row.day)}
-                                            </td>
-                                            <td className='px-4 py-2.5 text-stone-500 text-xs'>
-                                                {row.payment_count}
-                                            </td>
-                                            <td className='px-4 py-2.5 text-amber-700 text-xs'>
-                                                {row.cash_amount > 0
-                                                    ? formatCurrency(
-                                                          row.cash_amount,
-                                                      )
-                                                    : '—'}
-                                            </td>
-                                            <td className='px-4 py-2.5 text-blue-700 text-xs'>
-                                                {row.online_amount > 0
-                                                    ? formatCurrency(
-                                                          row.online_amount,
-                                                      )
-                                                    : '—'}
-                                            </td>
-                                            <td className='px-4 py-2.5 font-semibold text-green-700 text-xs'>
-                                                {formatCurrency(
-                                                    row.total_amount,
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                      </div>
+                    </div>
+                    <p className="text-sm font-bold text-green-700">
+                      {formatCurrency(agent.total_amount)}
+                    </p>
+                  </div>
+                  {/* Method breakdown */}
+                  <div className="flex gap-2 flex-wrap">
+                    {(agent.cash_count || 0) > 0 && (
+                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full">
+                        Cash: {agent.cash_count}
+                      </span>
                     )}
-                </Card>
+                    {(agent.online_count || 0) > 0 && (
+                      <span className="text-xs bg-blue-50 text-blue-700 border border-blue-100 px-2 py-0.5 rounded-full">
+                        Online: {agent.online_count}
+                      </span>
+                    )}
+                    {(agent.bank_count || 0) > 0 && (
+                      <span className="text-xs bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 rounded-full">
+                        Bank: {agent.bank_count}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-        </div>
-    );
+          )}
+        </Card>
+
+        {/* ── Day-wise Summary ── */}
+        <Card padding={false}>
+          <div className="px-5 py-3 border-b border-stone-200 flex items-center gap-2">
+            <Calendar size={15} className="text-green-600" />
+            <h2 className="text-sm font-semibold text-stone-800">Day-wise</h2>
+          </div>
+          {dailyLoading ? (
+            <div className="p-5">
+              <Spinner />
+            </div>
+          ) : dailyData.length === 0 ? (
+            <p className="text-sm text-stone-400 p-5 text-center">
+              No collections this month
+            </p>
+          ) : (
+            <div className="overflow-y-auto max-h-96">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-stone-50 border-b border-stone-200">
+                  <tr>
+                    {["Date", "Count", "Cash", "Online", "Total"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-4 py-2.5 text-left text-xs font-medium text-stone-500"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {dailyData.map((row: DailyCollectionItem) => (
+                    <tr key={row.day} className="hover:bg-stone-50">
+                      <td className="px-4 py-2.5 text-stone-700 text-xs font-medium">
+                        {formatDate(row.day)}
+                      </td>
+                      <td className="px-4 py-2.5 text-stone-500 text-xs">
+                        {row.payment_count}
+                      </td>
+                      <td className="px-4 py-2.5 text-amber-700 text-xs">
+                        {row.cash_amount > 0
+                          ? formatCurrency(row.cash_amount)
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 text-blue-700 text-xs">
+                        {row.online_amount > 0
+                          ? formatCurrency(row.online_amount)
+                          : "—"}
+                      </td>
+                      <td className="px-4 py-2.5 font-semibold text-green-700 text-xs">
+                        {formatCurrency(row.total_amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
 }
