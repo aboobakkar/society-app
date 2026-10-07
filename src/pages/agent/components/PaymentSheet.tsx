@@ -73,7 +73,9 @@ export function PaymentSheet({
   const [month, setMonth] = useState(defaultMonth || getCollectionMonth());
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<Method>("cash");
-  const [paymentType, setPaymentType] = useState<"monthly" | "imam_food">("monthly");
+  const [paymentType, setPaymentType] = useState<"monthly" | "imam_food">(
+    "monthly",
+  );
   const [notes, setNotes] = useState("");
   const [holdingPerson, setHoldingPerson] = useState("");
   const [saving, setSaving] = useState(false);
@@ -127,7 +129,11 @@ export function PaymentSheet({
   }, [open]);
 
   // WhatsApp share function using external template
-  const triggerWhatsAppShare = (phoneToSend: string, paymentAmt: number, paymentMethod: string) => {
+  const triggerWhatsAppShare = (
+    phoneToSend: string,
+    paymentAmt: number,
+    paymentMethod: string,
+  ) => {
     if (!member) return;
     const formattedPhone = cleanPhoneNumber(phoneToSend);
 
@@ -149,7 +155,7 @@ export function PaymentSheet({
       triggerWhatsAppShare(
         currentMemberPhone,
         lastRecordedPayment.amount,
-        lastRecordedPayment.method
+        lastRecordedPayment.method,
       );
     }
   };
@@ -157,7 +163,10 @@ export function PaymentSheet({
   const handleSaveNewPhoneAndShare = async () => {
     const cleaned = newPhoneInput.trim().replace(/\D/g, "");
     if (cleaned.length !== 10) {
-      alert((i18n as any).enterValidTenDigitPhone || "Please enter a valid 10-digit mobile number.");
+      alert(
+        (i18n as any).enterValidTenDigitPhone ||
+          "Please enter a valid 10-digit mobile number.",
+      );
       return;
     }
 
@@ -180,12 +189,15 @@ export function PaymentSheet({
         triggerWhatsAppShare(
           cleaned,
           lastRecordedPayment.amount,
-          lastRecordedPayment.method
+          lastRecordedPayment.method,
         );
       }
     } catch (err: any) {
       console.error("Error updating member phone:", err);
-      alert(((i18n as any).phoneUpdateFailed || "Failed to update phone number: ") + (err.message || ""));
+      alert(
+        ((i18n as any).phoneUpdateFailed || "Failed to update phone number: ") +
+          (err.message || ""),
+      );
     } finally {
       setUpdatingPhone(false);
     }
@@ -217,9 +229,15 @@ export function PaymentSheet({
 
     if (ok) {
       setLastRecordedPayment({ amount: amt, method });
+      // ഷീറ്റ് ക്ലോസ് ചെയ്യാതെ വാട്സാപ്പ് കാർഡ് സ്ക്രീനിൽ നിലനിർത്തുന്നു
       setShowSuccessModal(true);
-      onSuccess();
     }
+  };
+
+  const handleFinishAndClose = () => {
+    setShowSuccessModal(false);
+    onSuccess(); // ഡാറ്റ റിഫ്രഷ് ചെയ്യാൻ ഇപ്പോൾ മാത്രം onSuccess വിളിക്കുക
+    handleClose(); // ഷീറ്റ് ക്ലോസ് ചെയ്യുക
   };
 
   const handleClose = () => {
@@ -255,8 +273,8 @@ export function PaymentSheet({
               {showSuccessModal
                 ? "Payment Receipt"
                 : isReadOnly
-                ? "Payment Details"
-                : "Record Payment"}
+                  ? "Payment Details"
+                  : "Record Payment"}
             </h2>
             <p className="text-xs text-stone-400 mt-0.5">{member.id}</p>
           </div>
@@ -305,7 +323,8 @@ export function PaymentSheet({
               </div>
               <div>
                 <h3 className="text-base font-bold text-emerald-900">
-                  {(i18n as any).paymentRecordedSuccess || "Payment recorded successfully!"}
+                  {(i18n as any).paymentRecordedSuccess ||
+                    "Payment recorded successfully!"}
                 </h3>
                 <p className="text-xs text-emerald-700 mt-1">
                   {(i18n as any).amountLabel || "Amount"}:{" "}
@@ -320,11 +339,12 @@ export function PaymentSheet({
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
               >
                 <Share2 size={18} />
-                {(i18n as any).sendWhatsappReceipt || "Send Receipt via WhatsApp"}
+                {(i18n as any).sendWhatsappReceipt ||
+                  "Send Receipt via WhatsApp"}
               </button>
 
               <button
-                onClick={handleClose}
+                onClick={handleFinishAndClose}
                 className="w-full py-2.5 bg-white border border-stone-200 text-stone-700 text-xs font-semibold rounded-xl hover:bg-stone-50"
               >
                 {(i18n as any).close || "Close"}
@@ -373,8 +393,8 @@ export function PaymentSheet({
                       String(
                         member.opening_balance > 0
                           ? member.opening_balance
-                          : member.monthly_amount
-                      )
+                          : member.monthly_amount,
+                      ),
                     );
                   }}
                   className="flex-1 py-3 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 shadow-sm"
@@ -460,7 +480,8 @@ export function PaymentSheet({
                     Arrears: {formatCurrency(member.opening_balance)}
                   </p>
                   <p className="text-amber-700">
-                    Collections automatically credit the earliest dues. Any excess amount is preserved as advance balance.
+                    Collections automatically credit the earliest dues. Any
+                    excess amount is preserved as advance balance.
                   </p>
                 </div>
               )}
@@ -576,10 +597,12 @@ export function PaymentSheet({
             </div>
             <div>
               <h3 className="text-base font-bold text-stone-900">
-                {(i18n as any).invalidPhonePromptTitle || "Update WhatsApp Mobile Number"}
+                {(i18n as any).invalidPhonePromptTitle ||
+                  "Update WhatsApp Mobile Number"}
               </h3>
               <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                {(i18n as any).invalidPhonePromptDesc || "Enter a valid 10-digit number to send the WhatsApp receipt."}
+                {(i18n as any).invalidPhonePromptDesc ||
+                  "Enter a valid 10-digit number to send the WhatsApp receipt."}
               </p>
             </div>
 
