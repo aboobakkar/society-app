@@ -5,10 +5,10 @@ import {
   getCollectionMonth,
   getMonthOptions,
   formatMonth,
-  formatDate,
 } from "@/lib/utils";
 import { recordPayment, useHoldingPersons } from "@/hooks/useAgent";
 import { useAuth } from "@/hooks/useAuth";
+import { useLang } from "@/hooks/useLang";
 import { supabase } from "@/lib/supabase";
 import {
   CheckCircle,
@@ -19,6 +19,7 @@ import {
   Phone,
 } from "lucide-react";
 import { HoldingPersonPicker } from "@/components/HoldingPersonPicker";
+import { generateWhatsAppReceipt } from "@/lib/receiptTemplate";
 
 interface PaymentSheetProps {
   member: Member | null;
@@ -42,7 +43,6 @@ const METHOD_LABELS: Record<Method, string> = {
   bank: "🏦 Bank Transfer",
 };
 
-// Checks whether the phone number is a valid 10-digit Indian mobile number
 function isValidIndianMobile(phone: string): boolean {
   const cleaned = (phone || "").replace(/\D/g, "");
   if (cleaned.length === 10) return true;
@@ -66,21 +66,20 @@ export function PaymentSheet({
   existingPayment,
 }: PaymentSheetProps) {
   const { user } = useAuth();
+  const { i18n, lang } = useLang();
   const holdingPersons = useHoldingPersons();
 
   const [editing, setEditing] = useState(false);
   const [month, setMonth] = useState(defaultMonth || getCollectionMonth());
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<Method>("cash");
-  const [paymentType, setPaymentType] = useState<"monthly" | "imam_food">(
-    "monthly",
-  );
+  const [paymentType, setPaymentType] = useState<"monthly" | "imam_food">("monthly");
   const [notes, setNotes] = useState("");
   const [holdingPerson, setHoldingPerson] = useState("");
   const [saving, setSaving] = useState(false);
   const [showMonths, setShowMonths] = useState(false);
 
-  // State used for WhatsApp sharing
+  // States for WhatsApp Receipt share
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastRecordedPayment, setLastRecordedPayment] = useState<{
     amount: number;
@@ -127,39 +126,21 @@ export function PaymentSheet({
     };
   }, [open]);
 
-  // Creates and shares the payment receipt via WhatsApp
-  const triggerWhatsAppShare = (
-    phoneToSend: string,
-    paymentAmt: number,
-    paymentMethod: string,
-  ) => {
+  // WhatsApp share function using external template
+  const triggerWhatsAppShare = (phoneToSend: string, paymentAmt: number, paymentMethod: string) => {
     if (!member) return;
     const formattedPhone = cleanPhoneNumber(phoneToSend);
-    const todayFormatted = formatDate(new Date().toISOString());
 
-    // Calculates the remaining dues if the member still has an outstanding balance
-    const remainingDues = Math.max(
-      0,
-      (member.opening_balance || 0) - paymentAmt,
-    );
-
-    const receiptMessage = `*മസ്ജിദുൽ ഹിദായ - പേയ്‌മെന്റ് രസീത്* 🧾
---------------------------------
-Dear *${member.name}* (${member.id}),
-Your subscription payment has been received successfully.
-
-💵 Amount Paid: *${formatCurrency(paymentAmt)}*
-📅 Date: ${todayFormatted}
-💳 Method: ${paymentMethod.toUpperCase()}
-${remainingDues > 0 ? `📌 Remaining Dues: *${formatCurrency(remainingDues)}*` : "✅ No outstanding dues"}
---------------------------------
-Thank you! Society Committee.`;
+    const receiptMessage = generateWhatsAppReceipt({
+      member,
+      amount: paymentAmt,
+      method: paymentMethod,
+    });
 
     const waUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(receiptMessage)}`;
     window.open(waUrl, "_blank");
   };
 
-  // Handles the WhatsApp button click
   const handleInitiateWhatsApp = () => {
     if (!isValidIndianMobile(currentMemberPhone)) {
       setNewPhoneInput(currentMemberPhone.replace(/\D/g, ""));
@@ -168,16 +149,15 @@ Thank you! Society Committee.`;
       triggerWhatsAppShare(
         currentMemberPhone,
         lastRecordedPayment.amount,
-        lastRecordedPayment.method,
+        lastRecordedPayment.method
       );
     }
   };
 
-  // Saves the new phone number and syncs it with the database
   const handleSaveNewPhoneAndShare = async () => {
     const cleaned = newPhoneInput.trim().replace(/\D/g, "");
     if (cleaned.length !== 10) {
-      alert("Please enter a valid 10-digit mobile number.");
+      alert((i18n as any).enterValidTenDigitPhone || "Please enter a valid 10-digit mobile number.");
       return;
     }
 
@@ -185,7 +165,6 @@ Thank you! Society Committee.`;
 
     setUpdatingPhone(true);
     try {
-      // Updates the phone number in the Supabase members table
       const { error } = await supabase
         .from("members")
         .update({ mobile: cleaned, updated_at: new Date().toISOString() })
@@ -193,25 +172,20 @@ Thank you! Society Committee.`;
 
       if (error) throw error;
 
-      // Updates the local state
       setCurrentMemberPhone(cleaned);
       member.mobile = cleaned;
       setPhonePromptOpen(false);
 
-      // Redirects to WhatsApp immediately
       if (lastRecordedPayment) {
         triggerWhatsAppShare(
           cleaned,
           lastRecordedPayment.amount,
-          lastRecordedPayment.method,
+          lastRecordedPayment.method
         );
       }
     } catch (err: any) {
       console.error("Error updating member phone:", err);
-      alert(
-        "ഫോൺ നമ്പർ അപ്ഡേറ്റ് ചെയ്യുന്നതിൽ പരാജയപ്പെട്ടു: " +
-          (err.message || ""),
-      );
+      alert(((i18n as any).phoneUpdateFailed || "Failed to update phone number: ") + (err.message || ""));
     } finally {
       setUpdatingPhone(false);
     }
@@ -281,8 +255,8 @@ Thank you! Society Committee.`;
               {showSuccessModal
                 ? "Payment Receipt"
                 : isReadOnly
-                  ? "Payment Details"
-                  : "Record Payment"}
+                ? "Payment Details"
+                : "Record Payment"}
             </h2>
             <p className="text-xs text-stone-400 mt-0.5">{member.id}</p>
           </div>
@@ -311,7 +285,9 @@ Thank you! Society Committee.`;
               {member.name[0]?.toUpperCase()}
             </div>
             <div>
-              <p className="font-semibold text-stone-900">{member.name}</p>
+              <p className="font-semibold text-stone-900">
+                {lang === "ml" ? member.name_ml || member.name : member.name}
+              </p>
               <p className="text-xs text-stone-500">
                 {member.id} · {currentMemberPhone}
               </p>
@@ -321,7 +297,7 @@ Thank you! Society Committee.`;
             </div>
           </div>
 
-          {/* പണം സേവ് ചെയ്തതിനു ശേഷമുള്ള SUCCESS & WHATSAPP CARD */}
+          {/* After payment SUCCESS & WHATSAPP CARD */}
           {showSuccessModal && lastRecordedPayment ? (
             <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center space-y-4">
               <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
@@ -329,29 +305,29 @@ Thank you! Society Committee.`;
               </div>
               <div>
                 <h3 className="text-base font-bold text-emerald-900">
-                  Payment recorded successfully!
+                  {(i18n as any).paymentRecordedSuccess || "Payment recorded successfully!"}
                 </h3>
                 <p className="text-xs text-emerald-700 mt-1">
-                  തുക:{" "}
+                  {(i18n as any).amountLabel || "Amount"}:{" "}
                   <strong>{formatCurrency(lastRecordedPayment.amount)}</strong>{" "}
                   ({lastRecordedPayment.method.toUpperCase()})
                 </p>
               </div>
 
-              {/* വാട്സാപ്പ് ബട്ടൺ */}
+              {/* WhatsApp Share Button */}
               <button
                 onClick={handleInitiateWhatsApp}
                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
               >
                 <Share2 size={18} />
-                Send receipt via WhatsApp
+                {(i18n as any).sendWhatsappReceipt || "Send Receipt via WhatsApp"}
               </button>
 
               <button
                 onClick={handleClose}
                 className="w-full py-2.5 bg-white border border-stone-200 text-stone-700 text-xs font-semibold rounded-xl hover:bg-stone-50"
               >
-                Close
+                {(i18n as any).close || "Close"}
               </button>
             </div>
           ) : isReadOnly && existingPayment ? (
@@ -361,7 +337,7 @@ Thank you! Society Committee.`;
                 {[
                   {
                     label: "Month",
-                    value: formatMonth(existingPayment.month, "en"),
+                    value: formatMonth(existingPayment.month, lang),
                   },
                   {
                     label: "Amount",
@@ -397,8 +373,8 @@ Thank you! Society Committee.`;
                       String(
                         member.opening_balance > 0
                           ? member.opening_balance
-                          : member.monthly_amount,
-                      ),
+                          : member.monthly_amount
+                      )
                     );
                   }}
                   className="flex-1 py-3 bg-indigo-600 text-white text-xs font-semibold rounded-xl hover:bg-indigo-700 shadow-sm"
@@ -429,11 +405,11 @@ Thank you! Society Committee.`;
                         setHoldingPerson("");
                       }}
                       className={`py-2.5 px-3 rounded-xl text-xs font-medium transition-all text-center border
-                                                ${
-                                                  paymentType === opt.value
-                                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                                    : "bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100"
-                                                }`}
+                        ${
+                          paymentType === opt.value
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                            : "bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100"
+                        }`}
                     >
                       {opt.label}
                     </button>
@@ -451,7 +427,7 @@ Thank you! Society Committee.`;
                     onClick={() => setShowMonths(!showMonths)}
                     className="w-full flex items-center justify-between px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm font-medium text-stone-800"
                   >
-                    <span>{formatMonth(month, "en")}</span>
+                    <span>{formatMonth(month, lang)}</span>
                     <ChevronDown
                       size={16}
                       className={`text-stone-400 transition-transform ${showMonths ? "rotate-180" : ""}`}
@@ -467,9 +443,9 @@ Thank you! Society Committee.`;
                             setShowMonths(false);
                           }}
                           className={`w-full text-left px-4 py-3 text-sm transition-colors
-                                                        ${m === month ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-stone-700 hover:bg-stone-50"}`}
+                            ${m === month ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-stone-700 hover:bg-stone-50"}`}
                         >
-                          {formatMonth(m, "en")}
+                          {formatMonth(m, lang)}
                         </button>
                       ))}
                     </div>
@@ -484,8 +460,7 @@ Thank you! Society Committee.`;
                     Arrears: {formatCurrency(member.opening_balance)}
                   </p>
                   <p className="text-amber-700">
-                    Collections automatically credit the earliest dues. Any
-                    excess amount is preserved as advance balance.
+                    Collections automatically credit the earliest dues. Any excess amount is preserved as advance balance.
                   </p>
                 </div>
               )}
@@ -525,7 +500,7 @@ Thank you! Society Committee.`;
                         setHoldingPerson("");
                       }}
                       className={`py-3 px-2 rounded-xl text-xs font-medium transition-all text-center
-                                                ${method === m ? "bg-indigo-600 text-white shadow-sm" : "bg-stone-50 text-stone-600 border border-stone-200"}`}
+                        ${method === m ? "bg-indigo-600 text-white shadow-sm" : "bg-stone-50 text-stone-600 border border-stone-200"}`}
                     >
                       {METHOD_LABELS[m]}
                     </button>
@@ -592,7 +567,7 @@ Thank you! Society Committee.`;
         </div>
       </div>
 
-      {/* (INVALID PHONE PROMPT) */}
+      {/* INVALID PHONE PROMPT MODAL */}
       {phonePromptOpen && (
         <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-2xl p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
@@ -601,19 +576,16 @@ Thank you! Society Committee.`;
             </div>
             <div>
               <h3 className="text-base font-bold text-stone-900">
-                Enter a valid WhatsApp number
+                {(i18n as any).invalidPhonePromptTitle || "Update WhatsApp Mobile Number"}
               </h3>
               <p className="text-xs text-stone-500 mt-1 leading-relaxed">
-                The number currently registered for this member (
-                {currentMemberPhone || "None"}) is not a valid 10-digit number.
-                Enter the correct number to send the receipt. This number will
-                be saved to the database automatically.
+                {(i18n as any).invalidPhonePromptDesc || "Enter a valid 10-digit number to send the WhatsApp receipt."}
               </p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-stone-600 mb-1.5">
-                10-Digit Mobile Number
+                {(i18n as any).mobileTenDigitsLabel || "10-Digit Mobile Number"}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-stone-400">
@@ -638,7 +610,7 @@ Thank you! Society Committee.`;
                 onClick={() => setPhonePromptOpen(false)}
                 className="flex-1 py-2.5 px-3 border border-stone-200 text-stone-600 text-xs font-semibold rounded-xl hover:bg-stone-50"
               >
-                Cancel
+                {(i18n as any).cancel || "Cancel"}
               </button>
               <button
                 type="button"
@@ -646,7 +618,9 @@ Thank you! Society Committee.`;
                 onClick={handleSaveNewPhoneAndShare}
                 className="flex-1 py-2.5 px-3 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50"
               >
-                {updatingPhone ? "Saving..." : "Save & Send Receipt"}
+                {updatingPhone
+                  ? "Saving..."
+                  : (i18n as any).saveAndSendReceipt || "Save & Send Receipt"}
               </button>
             </div>
           </div>
