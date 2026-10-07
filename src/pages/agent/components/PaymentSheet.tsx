@@ -5,6 +5,7 @@ import {
   getCollectionMonth,
   getMonthOptions,
   formatMonth,
+  getCurrentMonth,
 } from "@/lib/utils";
 import { recordPayment, useHoldingPersons } from "@/hooks/useAgent";
 import { useAuth } from "@/hooks/useAuth";
@@ -141,6 +142,7 @@ export function PaymentSheet({
       member,
       amount: paymentAmt,
       method: paymentMethod,
+      month: month,
     });
 
     const waUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(receiptMessage)}`;
@@ -229,15 +231,14 @@ export function PaymentSheet({
 
     if (ok) {
       setLastRecordedPayment({ amount: amt, method });
-      // ഷീറ്റ് ക്ലോസ് ചെയ്യാതെ വാട്സാപ്പ് കാർഡ് സ്ക്രീനിൽ നിലനിർത്തുന്നു
       setShowSuccessModal(true);
     }
   };
 
   const handleFinishAndClose = () => {
     setShowSuccessModal(false);
-    onSuccess(); // ഡാറ്റ റിഫ്രഷ് ചെയ്യാൻ ഇപ്പോൾ മാത്രം onSuccess വിളിക്കുക
-    handleClose(); // ഷീറ്റ് ക്ലോസ് ചെയ്യുക
+    onSuccess();
+    handleClose();
   };
 
   const handleClose = () => {
@@ -253,7 +254,7 @@ export function PaymentSheet({
   };
 
   const monthOptions = getMonthOptions(2023)
-    .filter((m) => m <= getCollectionMonth())
+    .filter((m) => m <= getCurrentMonth())
     .reverse();
 
   if (!open || !member) return null;

@@ -27,10 +27,7 @@ export default function ReportsPage() {
   // Grouping by actual payment transaction date (YYYY-MM)
   const monthlyStats = useMemo(() => {
     return monthsInYear.map((monthKey) => {
-      const mPayments = payments.filter((p) => {
-        const date = p.payment_date || p.created_at?.split("T")[0];
-        return date && date.startsWith(monthKey);
-      });
+      const mPayments = payments.filter((p) => p.month === monthKey);
 
       const mExpenses = expenses.filter((e) => {
         const date = e.expense_date || e.created_at?.split("T")[0];
@@ -295,11 +292,7 @@ export default function ReportsPage() {
                     {/* Month-wise Paid Status */}
                     {monthsInYear.map((monthKey) => {
                       const monthPaid = memberPayments
-                        .filter((p) => {
-                          const date =
-                            p.payment_date || p.created_at?.split("T")[0];
-                          return date?.startsWith(monthKey);
-                        })
+                        .filter((p) => p.month === monthKey)
                         .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
                       return (
